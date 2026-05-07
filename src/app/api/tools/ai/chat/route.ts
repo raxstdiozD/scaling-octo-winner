@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { createClient } from "@/utils/supabase/server";
 import { prisma } from '@/lib/prisma';
 import axios from 'axios';
 import fs from 'fs/promises';
@@ -8,11 +8,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 export async function GET(req: Request) {
   try {
-    const session = await auth();
-    let sbUser = session?.user;
-    if (!sbUser && process.env.NODE_ENV === 'development') {
-      sbUser = { id: "test-user", email: "test@test.test", name: "test" };
-    }
+    const supabase = await createClient();
+    const { data: { user: sbUser } } = await supabase.auth.getUser();
     if (!sbUser || !sbUser.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     let user = await prisma.user.findUnique({ where: { email: sbUser.email } });
     if (!user) return NextResponse.json({ sessions: [] });
@@ -38,22 +35,22 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    let sbUser = session?.user;
-    if (!sbUser && process.env.NODE_ENV === 'development') {
-      sbUser = { id: "test-user", email: "test@test.test", name: "test" };
-    }
+    const supabase = await createClient();
+    const { data: { user: sbUser } } = await supabase.auth.getUser();
     if (!sbUser || !sbUser.email) return NextResponse.json({ error: "Please sign in" }, { status: 401 });
 
     let user = await prisma.user.findUnique({ where: { email: sbUser.email } });
     if (!user) {
       user = await prisma.user.create({
-        data: { id: sbUser.id, email: sbUser.email, name: sbUser.name || "User", credits: 999999, plan: 'pro' }
+        data: { id: sbUser.id, email: sbUser.email, name: sbUser.name || "User", credits: 50, plan: 'free' }
       });
     }
 
-    // Credit system disabled for development
-    const cost = 0;
+    // Credit system
+    const cost = 5;
+    if (user.plan !== 'pro' && user.credits < cost) {
+       return NextResponse.json({ error: "Insufficient credits" }, { status: 403 });
+    }
 
     const body = await req.json();
     const { messages, sessionId, attachments = [] } = body;
@@ -155,7 +152,7 @@ RESPONSE STRUCTURE:
 CAPABILITIES:
 - REASONING: Break down complex problems step-by-step.
 - CREATIVITY: Excel at storytelling and unique brainstorming.
-- TOOLS: Proactively use Search, YouTube, and Image tools to provide a premium experience. When using the generate_image tool, you MUST include the resulting image in your response using markdown syntax: ![Image Description](URL).
+- TOOLS: Use Search, YouTube, and Image tools when helpful. When using the generate_image tool, you MUST include the resulting image in your response using markdown syntax: ![Image Description](URL).
 
 Current Context:
 ${contextStr}
@@ -255,7 +252,7 @@ ${contextStr}
                 content = `Name: ${item.snippet.title}\nURL: ${link}\nCHANNEL_PFP: ${item.snippet.thumbnails.high.url}\nSubs: ${item.statistics.subscriberCount || 'N/A'}\nViews: ${item.statistics.viewCount}\nVideos: ${item.statistics.videoCount || 'N/A'}`;
               }
             } else if (tc.function.name === "generate_image") {
-              content = `IMAGE_RESULT: https://image.pollinations.ai/prompt/${encodeURIComponent(args.prompt)}?nologo=true`;
+              content = `https://image.pollinations.ai/prompt/${encodeURIComponent(args.prompt)}?nologo=true`;
             } else if (tc.function.name === "initialize_project") {
               await prisma.userContext.update({
                 where: { userId: user.id },
@@ -319,7 +316,11 @@ ${contextStr}
       activeSessionId = s.id;
     }
 
-    // Credit system disabled
+    // Deduct credits
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { credits: { decrement: cost } }
+    });
 
     return NextResponse.json({ message: finalAiContent, id: activeSessionId });
   } catch (err: any) {

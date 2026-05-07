@@ -206,9 +206,6 @@ export function useCredits() {
   };
 
   const consumeMessage = async () => {
-    // Dev Bypass: Always allow sending in local development without session
-    if (process.env.NODE_ENV === 'development') return true;
-    
     if (!userId || !state) return false;
     const limit = state.plan === 'pro' ? PRO_LIMITS.messages : FREE_LIMITS.messages;
     if (state.plan === 'free' && state.aiMessagesToday >= limit) {
@@ -226,26 +223,6 @@ export function useCredits() {
     }
   };
 
-  // Mock credits for development
-  if (process.env.NODE_ENV === 'development') {
-    return {
-      credits: 999999,
-      dailyCredits: 999999,
-      lifetimeCredits: 999999,
-      messagesUsed: 0,
-      plan: 'pro' as const,
-      isPro: true,
-      loading: false,
-      userId: userId || 'guest-user',
-      deductCredits: async () => true,
-      addCredits: async () => true,
-      consumeMessage: async () => true,
-      showUpsell: false,
-      setShowUpsell: () => {},
-      notification: null,
-      refreshCredits: () => {}
-    };
-  }
 
   return {
     credits: (state?.lifetimeCredits ?? 0) + (state?.dailyCredits ?? 0),

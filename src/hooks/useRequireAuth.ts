@@ -14,13 +14,6 @@ export function useRequireAuth() {
 
   useEffect(() => {
     async function checkAuth() {
-      // Dev Bypass: return mock user in local development
-      if (process.env.NODE_ENV === 'development') {
-        setUser({ id: "test-user", email: "test@test.test", name: "test" });
-        setIsLoading(false);
-        return;
-      }
-
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {

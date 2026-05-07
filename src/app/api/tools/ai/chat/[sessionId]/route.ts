@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { createClient } from "@/utils/supabase/server";
 import { prisma } from '@/lib/prisma';
 
 export async function GET(req: Request, props: { params: Promise<{ sessionId: string }> }) {
   try {
     const params = await props.params;
-    const session = await auth();
-    let sbUser = session?.user;
+    const supabase = await createClient();
+    const { data: { user: sbUser } } = await supabase.auth.getUser();
 
-    if (!sbUser && process.env.NODE_ENV === 'development') {
-      sbUser = { id: "dev-user-id", email: "dev@lumora.ai", name: "Lumora Creator" };
-    }
 
     if (!sbUser || !sbUser.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -52,12 +49,8 @@ export async function GET(req: Request, props: { params: Promise<{ sessionId: st
 export async function DELETE(req: Request, props: { params: Promise<{ sessionId: string }> }) {
   try {
     const params = await props.params;
-    const session = await auth();
-    let sbUser = session?.user;
-
-    if (!sbUser && process.env.NODE_ENV === 'development') {
-      sbUser = { id: "dev-user-id", email: "dev@lumora.ai" };
-    }
+    const supabase = await createClient();
+    const { data: { user: sbUser } } = await supabase.auth.getUser();
 
     if (!sbUser || !sbUser.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

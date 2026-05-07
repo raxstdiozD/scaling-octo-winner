@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { createClient } from "@/utils/supabase/server";
 import { prisma } from "@/lib/prisma";
 
 // GET recent history
 export async function GET(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
@@ -15,10 +17,10 @@ export async function GET(req: Request) {
 
     const history = await prisma.userFile.findMany({
       where: {
-        userId: session.user.id,
+        userId: user.id,
       },
       orderBy: {
-        createdAt: "desc",
+        lastAccessed: "desc",
       },
       take: limit,
     });
@@ -26,49 +28,50 @@ export async function GET(req: Request) {
     return NextResponse.json(history);
   } catch (error) {
     console.error("[HISTORY_GET]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return new NextResponse("Internal Error", { status: 500 });
   }
 }
 
-// POST new history record
+// POST new history item
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
     const body = await req.json();
-    const { 
-      toolType, 
-      originalName, 
-      originalUrl, 
-      resultUrl, 
-      fileType, 
-      status, 
-      metadata 
-    } = body;
+    const { fileName, filePath, fileType, content } = body;
 
-    if (!toolType || !originalName || !fileType) {
-      return new NextResponse("Missing required fields", { status: 400 });
+    if (!fileName || !filePath) {
+      return new NextResponse("Missing fields", { status: 400 });
     }
 
-    const newFile = await prisma.userFile.create({
-      data: {
-        userId: session.user.id,
-        toolType,
-        originalName,
-        originalUrl,
-        resultUrl,
+    const historyItem = await prisma.userFile.upsert({
+      where: {
+        userId_filePath: {
+          userId: user.id,
+          filePath: filePath,
+        },
+      },
+      update: {
+        lastAccessed: new Date(),
+        content: content,
+      },
+      create: {
+        userId: user.id,
+        fileName,
+        filePath,
         fileType,
-        status: status || "completed",
-        metadata: metadata || null,
+        content,
       },
     });
 
-    return NextResponse.json(newFile);
+    return NextResponse.json(historyItem);
   } catch (error) {
     console.error("[HISTORY_POST]", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    return new NextResponse("Internal Error", { status: 500 });
   }
 }

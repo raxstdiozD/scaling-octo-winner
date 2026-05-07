@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { createClient } from "@/utils/supabase/server";
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
@@ -77,18 +76,7 @@ const getFluxWorkflow = (prompt: string, width: number, height: number, seed: nu
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
-    const session = await auth();
-    let sbUser = session?.user;
-
-    // DEVELOPMENT BYPASS: If no session found in local dev, use a default dev user
-    if (!sbUser && process.env.NODE_ENV === 'development') {
-      console.log("No session found for image gen, using development fallback user.");
-      sbUser = {
-        id: "test-user",
-        email: "test@test.test",
-        name: "test"
-      };
-    }
+    const { data: { user: sbUser } } = await supabase.auth.getUser();
 
     if (!sbUser || !sbUser.email) {
       return NextResponse.json({ error: "Please sign in to generate images" }, { status: 401 });

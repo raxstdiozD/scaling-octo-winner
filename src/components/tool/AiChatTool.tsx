@@ -138,18 +138,7 @@ export function AiChatTool() {
   useEffect(() => {
     rollSuggestions();
     supabase.auth.getSession().then(({ data: { session } }) => {
-      // Mock session for development if none exists
-      if (!session && process.env.NODE_ENV === 'development') {
-        setSession({
-          user: {
-            id: 'test-user',
-            email: 'test@test.test',
-            user_metadata: { full_name: 'test' }
-          }
-        });
-      } else {
-        setSession(session);
-      }
+      setSession(session);
     });
     
     fetchSessions();
@@ -239,7 +228,8 @@ export function AiChatTool() {
       return;
     }
 
-    // Credits system removed for now
+    const canSend = await consumeMessage();
+    if (!canSend) return;
     const userMsg: Message = { 
       role: "user", 
       content: content.trim(),
@@ -337,7 +327,7 @@ export function AiChatTool() {
         const lang = match ? match[1] : 'text';
         const code = match ? match[2] : part.replace(/```/g, '');
         return (
-          <div key={i} className="my-6 rounded-2xl overflow-hidden border border-white/5 bg-[#0a0a0a] shadow-2xl">
+          <div key={i} className="my-6 rounded-2xl overflow-x-auto border border-white/5 bg-[#0a0a0a] shadow-2xl custom-scrollbar">
             <div className="px-5 py-3 bg-[#111] border-b border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                  <div className="w-2 h-2 rounded-full bg-cyan-400" />
@@ -453,7 +443,7 @@ export function AiChatTool() {
       </div>
 
       {/* --- Main App Layout --- */}
-      <div className="flex-1 flex overflow-hidden relative z-10 w-full h-full">
+      <div className="flex-1 flex overflow-hidden relative z-10 w-full">
         
         {/* --- Left Sidebar --- */}
         <AnimatePresence>
@@ -552,7 +542,7 @@ export function AiChatTool() {
         </AnimatePresence>
 
         {/* --- Main Chat Area --- */}
-        <div className="flex-1 flex flex-col min-w-0 h-full relative">
+        <div className="flex-1 flex flex-col min-w-0 relative">
           
           {/* Header */}
           <header className="h-20 px-6 md:px-8 border-b border-white/5 flex items-center justify-between bg-transparent shrink-0 z-50">
@@ -660,9 +650,9 @@ export function AiChatTool() {
                           </div>
                         )}
                         
-                        <div className={cn("flex flex-col space-y-2 max-w-[85%] md:max-w-[75%]", msg.role === 'user' ? "items-end" : "items-start")}>
+                        <div className={cn("flex flex-col space-y-2 max-w-[90%] md:max-w-[85%]", msg.role === 'user' ? "items-end" : "items-start")}>
                           <div className={cn(
-                            "px-7 py-6 rounded-[2rem] text-[16px] leading-[1.8] relative shadow-2xl",
+                            "px-7 py-6 rounded-[2rem] text-[16px] leading-[1.8] relative shadow-2xl w-full overflow-hidden",
                             msg.role === 'user' 
                               ? "bg-gradient-to-br from-purple-600 to-cyan-600 text-white rounded-tr-sm border border-white/10" 
                               : "bg-[#0c0c0e] border border-white/10 text-zinc-200 rounded-tl-sm backdrop-blur-3xl"
@@ -766,7 +756,12 @@ export function AiChatTool() {
                         </AnimatePresence>
                         <textarea 
                            value={input} 
-                           onChange={handleInputChange} 
+                           onChange={(e) => {
+                             handleInputChange(e);
+                             const target = e.target as HTMLTextAreaElement;
+                             target.style.height = 'auto';
+                             target.style.height = `${Math.min(target.scrollHeight, 300)}px`;
+                           }}
                            onKeyDown={(e) => { 
                               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } 
                               if (e.key === 'Escape') setShowCommands(false);
@@ -774,11 +769,6 @@ export function AiChatTool() {
                            placeholder="Ask anything... or press '/' for commands" 
                            className="w-full bg-transparent border-0 ring-0 outline-none focus:ring-0 focus:outline-none focus:border-transparent text-[16px] text-white placeholder-zinc-600 py-3.5 px-1 min-h-[48px] max-h-[300px] resize-none overflow-y-auto no-scrollbar font-medium relative z-10 leading-snug"
                            rows={1}
-                           onInput={(e) => {
-                             const target = e.target as HTMLTextAreaElement;
-                             target.style.height = 'auto';
-                             target.style.height = `${Math.min(target.scrollHeight, 300)}px`;
-                           }}
                         />
                       </div>
                    </div>

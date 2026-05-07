@@ -16,10 +16,6 @@ export function ProtectedTool({ children }: ProtectedToolProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Dev Bypass: allow access without login in local development
-  if (process.env.NODE_ENV === 'development') {
-    return <>{children}</>;
-  }
 
   if (isLoading) {
     return (

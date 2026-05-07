@@ -1,17 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { createClient } from "@/utils/supabase/server";
 import { prisma } from '@/lib/prisma';
 import axios from 'axios';
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    let sbUser = session?.user;
-
-    // Development bypass
-    if (!sbUser && process.env.NODE_ENV === 'development') {
-      sbUser = { id: "dev-user", email: "dev@lumora.ai", name: "Lumora Creator" };
-    }
+    const supabase = await createClient();
+    const { data: { user: sbUser } } = await supabase.auth.getUser();
 
     if (!sbUser || !sbUser.email) {
       return NextResponse.json({ error: "Please sign in to generate code" }, { status: 401 });

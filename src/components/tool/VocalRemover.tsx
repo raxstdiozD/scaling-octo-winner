@@ -166,18 +166,30 @@ export function VocalRemover() {
         setStep(1);
         setProgress(15);
 
-        // Call the real API
-        const response = await fetch('/api/tools/vocal-remover', {
+        // Call the engine directly if possible to bypass Vercel timeouts
+        const engineBaseUrl = process.env.NEXT_PUBLIC_ENGINE_URL || '';
+        const apiUrl = engineBaseUrl ? `${engineBaseUrl.endsWith('/') ? engineBaseUrl.slice(0, -1) : engineBaseUrl}/separate` : '/api/tools/vocal-remover';
+        
+        console.log('Sending request to:', apiUrl);
+        const response = await fetch(apiUrl, {
             method: 'POST',
             body: formData,
         });
 
         if (!response.ok) {
-            const error = await response.json();
+            let errorMsg = 'Separation failed';
+            try {
+                const error = await response.json();
+                errorMsg = error.error || error.detail || errorMsg;
+            } catch (e) {
+                const text = await response.text();
+                errorMsg = text || errorMsg;
+            }
+            
             if (response.status === 503) {
-                alert("Hugging Face is currently loading the AI model. This usually takes 30-60 seconds for the first request. Please wait a moment and try again!");
+                alert("The AI service is currently starting up. Please wait 30 seconds and try again!");
             } else {
-                throw new Error(error.error || 'Separation failed');
+                throw new Error(errorMsg);
             }
             return;
         }

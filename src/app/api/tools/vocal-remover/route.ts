@@ -140,8 +140,9 @@ export async function POST(req: NextRequest) {
       error: userMessage,
       details: error.message,
       debug_info: {
-        engine_url: process.env.NEXT_PUBLIC_ENGINE_URL ? 'Configured' : 'Missing (Defaulting to localhost)',
-        hf_token: process.env.HUGGINGFACE_TOKEN ? 'Present' : 'Missing'
+        engine_url: localApiUrl,
+        hf_token_present: !!process.env.HUGGINGFACE_TOKEN,
+        error_stack: error.stack?.split('\n')[0]
       }
     }, { status: 500 });
   }

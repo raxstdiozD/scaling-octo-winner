@@ -34,7 +34,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   // 2. Category Pages (High Discovery)
   const categoryPages = CATEGORIES.map((category) => ({
-    url: `${baseUrl}/tools/${category.id}`,
+    url: `${baseUrl}/category/${category.id}`,
     lastModified: new Date(),
     changeFrequency: 'weekly' as const,
     priority: 0.8,

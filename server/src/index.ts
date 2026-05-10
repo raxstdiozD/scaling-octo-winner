@@ -7,13 +7,18 @@ dotenv.config();
 
 const app = express();
 const prisma = new PrismaClient();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
 import audioRoutes from './routes/audioRoutes';
 import imageRoutes from './routes/imageRoutes';
+
+// Root Handler for Railway Health Checks
+app.get('/', (req, res) => {
+  res.send('Lumora Engine is Running! 🚀');
+});
 
 // Health Check
 app.get('/health', (req, res) => {

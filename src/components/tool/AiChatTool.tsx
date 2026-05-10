@@ -476,7 +476,7 @@ export function AiChatTool() {
   };
 
   return (
-    <div suppressHydrationWarning className="fixed inset-0 bg-[#050505] text-zinc-300 font-sans selection:bg-purple-500/30 overflow-hidden flex flex-col z-[100]">
+    <div suppressHydrationWarning className="fixed inset-0 bg-[#050505] text-zinc-300 font-sans selection:bg-purple-500/30 overflow-hidden flex flex-col z-[200]">
       
       {/* --- Ambient Background Glows --- */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">

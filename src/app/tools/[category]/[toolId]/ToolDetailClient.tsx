@@ -152,7 +152,7 @@ export function ToolDetailClient({ tool, category, relatedTools, categoryId, too
           }}
         />
       )}
-       {tool.id !== 'image-eraser' && (
+       {tool.id !== 'image-eraser' && tool.id !== 'ai-chat' && (
          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-12 border-b border-zinc-800/50">
 
           <div className="space-y-6">

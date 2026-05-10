@@ -64,16 +64,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // --- Fallback to Hugging Face (in case local service is down) ---
+    // --- Fallback to Hugging Face (Ultra-Reliable Safety Net) ---
     const hfToken = process.env.HUGGINGFACE_TOKEN;
     if (!hfToken) {
       return NextResponse.json({ error: 'Primary service down and HF Token missing' }, { status: 503 });
     }
 
-    // Use a more stable Space for fallback
-    // Space: r3gm/Audio_separator
     const hfSpaceUrl = "https://r3gm-audio-separator.hf.space/api/predict";
-    
     const buffer = Buffer.from(await file.arrayBuffer());
     const base64Audio = buffer.toString('base64');
     
@@ -95,6 +92,8 @@ export async function POST(req: NextRequest) {
     });
 
     if (!hfResponse.ok) {
+      const errorData = await hfResponse.text();
+      console.error('HF Fallback failed:', errorData);
       throw new Error(`HF Fallback failed: ${hfResponse.statusText}`);
     }
 

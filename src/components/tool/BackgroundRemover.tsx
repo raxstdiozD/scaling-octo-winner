@@ -1,62 +1,64 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { 
-  Eraser, 
+  ImageIcon, 
   Upload, 
   Download, 
-  Trash2, 
-  Undo2, 
-  RotateCcw,
-  Sparkles,
-  Check,
-  Zap,
-  Loader2,
-  Brush,
+  RefreshCw, 
+  Loader2, 
+  Sparkles, 
+  Check, 
+  X, 
+  Layers, 
+  Zap, 
+  ShieldCheck, 
+  History,
+  Eraser,
   Minus,
   Plus,
-  ArrowRight,
-  Maximize2,
-  RefreshCw,
-  Image as ImageIcon,
+  Undo2,
   Redo2,
-  Settings2,
-  History,
-  X,
-  Layers,
-  MousePointer2,
-  Save
+  LayoutGrid,
+  Maximize
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { saveFileHistory } from "@/lib/history";
 
+type Mode = "bg-remove" | "object-erase";
+
 interface HistoryState {
   mask: string;
 }
 
-export function MagicEraser() {
+export function BackgroundRemover() {
+  const [mode, setMode] = useState<Mode>("bg-remove");
   const [image, setImage] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string>("image.png");
   const [result, setResult] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [brushSize, setBrushSize] = useState(40);
-  const [brushHardness, setBrushHardness] = useState(80);
-  const [isDrawing, setIsDrawing] = useState(false);
   const [comparisonValue, setComparisonValue] = useState(50);
-  const [history, setHistory] = useState<HistoryState[]>([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
   const [showComparison, setShowComparison] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
+  // Object Erase specific state
+  const [brushSize, setBrushSize] = useState(40);
+  const [brushHardness, setBrushHardness] = useState(80);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [maskHistory, setMaskHistory] = useState<HistoryState[]>([]);
+  const [maskHistoryIndex, setMaskHistoryIndex] = useState(-1);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Initialize Canvas
+  // Initialize Canvas for Object Erase
   const initCanvas = useCallback((imgSrc: string) => {
+    if (mode !== "object-erase") return;
+    
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.src = imgSrc;
@@ -69,7 +71,6 @@ export function MagicEraser() {
       const maskCtx = maskCanvas.getContext("2d", { willReadFrequently: true });
       if (!ctx || !maskCtx) return;
 
-      // Fit image to container
       const parent = canvas.parentElement;
       if (!parent) return;
       
@@ -86,14 +87,21 @@ export function MagicEraser() {
       
       // Reset history
       const initialState = maskCanvas.toDataURL();
-      setHistory([{ mask: initialState }]);
-      setHistoryIndex(0);
+      setMaskHistory([{ mask: initialState }]);
+      setMaskHistoryIndex(0);
     };
-  }, []);
+  }, [mode]);
+
+  useEffect(() => {
+    if (image && mode === "object-erase") {
+      setTimeout(() => initCanvas(image), 100);
+    }
+  }, [mode, image, initCanvas]);
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setImageFile(file);
       setFileName(file.name);
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -101,102 +109,63 @@ export function MagicEraser() {
         setImage(src);
         setResult(null);
         setShowComparison(false);
-        setTimeout(() => initCanvas(src), 100);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-    if (isProcessing) return;
-    setIsDrawing(true);
-    draw(e);
+  const processAction = async () => {
+    if (mode === "bg-remove") await processBgRemoval();
+    else await processObjectEraser();
   };
 
-  const stopDrawing = () => {
-    if (isDrawing) {
-      saveToHistory();
-    }
-    setIsDrawing(false);
-    const maskCtx = maskCanvasRef.current?.getContext("2d");
-    maskCtx?.beginPath();
-  };
+  const processBgRemoval = async () => {
+    if (!imageFile) return;
+    setIsProcessing(true);
 
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing) return;
-    const canvas = maskCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const formData = new FormData();
+    formData.append("file", imageFile);
 
-    const rect = canvas.getBoundingClientRect();
-    const x = (("touches" in e) ? e.touches[0].clientX : (e as React.MouseEvent).clientX) - rect.left;
-    const y = (("touches" in e) ? e.touches[0].clientY : (e as React.MouseEvent).clientY) - rect.top;
-
-    ctx.lineWidth = brushSize;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    
-    // Simulate hardness with shadow
-    const blur = (1 - brushHardness / 100) * brushSize / 2;
-    ctx.shadowBlur = blur;
-    ctx.shadowColor = "rgba(168, 85, 247, 0.8)";
-    ctx.strokeStyle = "rgba(168, 85, 247, 0.8)";
-
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-  };
-
-  const saveToHistory = () => {
-    const canvas = maskCanvasRef.current;
-    if (!canvas) return;
-    const newState = canvas.toDataURL();
-    
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push({ mask: newState });
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-  };
-
-  const undo = () => {
-    if (historyIndex > 0) {
-      const newIndex = historyIndex - 1;
-      setHistoryIndex(newIndex);
-      loadHistoryState(newIndex);
+    try {
+      const response = await fetch("/api/tools/image/bg-remove", {
+        method: "POST",
+        body: formData
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        setResult(data.result);
+        setShowComparison(true);
+        setSuccessMessage("Background removed successfully!");
+        setTimeout(() => setSuccessMessage(null), 3000);
+        
+        await saveFileHistory({
+          toolType: "bg-remove",
+          originalName: fileName,
+          resultUrl: data.result,
+          fileType: "image",
+          status: "completed",
+        });
+      } else {
+        throw new Error(data.error || "Processing failed");
+      }
+    } catch (error: any) {
+      console.error("Background removal failed:", error);
+      setErrorMessage(error.message || "Something went wrong. Please try again.");
+      setTimeout(() => setErrorMessage(null), 5000);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      const newIndex = historyIndex + 1;
-      setHistoryIndex(newIndex);
-      loadHistoryState(newIndex);
-    }
-  };
-
-  const loadHistoryState = (index: number) => {
-    const canvas = maskCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const img = new Image();
-    img.src = history[index].mask;
-    img.onload = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0);
-    };
-  };
-
-  const processEraser = async () => {
+  const processObjectEraser = async () => {
     if (!image) return;
     setIsProcessing(true);
 
     const maskCanvas = maskCanvasRef.current;
     if (!maskCanvas) return;
     
+    // Create a black and white mask for the API
     const tempCanvas = document.createElement("canvas");
     tempCanvas.width = maskCanvas.width;
     tempCanvas.height = maskCanvas.height;
@@ -230,7 +199,7 @@ export function MagicEraser() {
       if (data.success) {
         setResult(data.result);
         setShowComparison(true);
-        setSuccessMessage("Object removed successfully!");
+        setSuccessMessage("Object removed with high precision!");
         setTimeout(() => setSuccessMessage(null), 3000);
         
         await saveFileHistory({
@@ -252,11 +221,90 @@ export function MagicEraser() {
     }
   };
 
+  // Drawing Logic
+  const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+    if (isProcessing) return;
+    setIsDrawing(true);
+    draw(e);
+  };
+
+  const stopDrawing = () => {
+    if (isDrawing) {
+      const canvas = maskCanvasRef.current;
+      if (canvas) {
+        const newState = canvas.toDataURL();
+        const newHistory = maskHistory.slice(0, maskHistoryIndex + 1);
+        newHistory.push({ mask: newState });
+        setMaskHistory(newHistory);
+        setMaskHistoryIndex(newHistory.length - 1);
+      }
+    }
+    setIsDrawing(false);
+    maskCanvasRef.current?.getContext("2d")?.beginPath();
+  };
+
+  const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawing) return;
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = (("touches" in e) ? e.touches[0].clientX : (e as React.MouseEvent).clientX) - rect.left;
+    const y = (("touches" in e) ? e.touches[0].clientY : (e as React.MouseEvent).clientY) - rect.top;
+
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    
+    const blur = (1 - brushHardness / 100) * brushSize / 2;
+    ctx.shadowBlur = blur;
+    ctx.shadowColor = "rgba(168, 85, 247, 0.8)";
+    ctx.strokeStyle = "rgba(168, 85, 247, 0.8)";
+
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const undo = () => {
+    if (maskHistoryIndex > 0) {
+      const newIndex = maskHistoryIndex - 1;
+      setMaskHistoryIndex(newIndex);
+      loadHistoryState(newIndex);
+    }
+  };
+
+  const redo = () => {
+    if (maskHistoryIndex < maskHistory.length - 1) {
+      const newIndex = maskHistoryIndex + 1;
+      setMaskHistoryIndex(newIndex);
+      loadHistoryState(newIndex);
+    }
+  };
+
+  const loadHistoryState = (index: number) => {
+    const canvas = maskCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const img = new Image();
+    img.src = maskHistory[index].mask;
+    img.onload = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+    };
+  };
+
   const resetAll = () => {
     setImage(null);
+    setImageFile(null);
     setResult(null);
-    setHistory([]);
-    setHistoryIndex(-1);
+    setMaskHistory([]);
+    setMaskHistoryIndex(-1);
     setShowComparison(false);
   };
 
@@ -281,16 +329,40 @@ export function MagicEraser() {
       </AnimatePresence>
 
       {/* TOP TOOL BAR */}
-
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6 p-6 rounded-[2.5rem] glass-dark border border-white/5 shadow-2xl relative overflow-hidden">
+      <div className="flex flex-col lg:flex-row items-center justify-between gap-6 p-6 rounded-[2.5rem] glass-dark border border-white/5 shadow-2xl relative overflow-hidden">
         <div className="flex items-center gap-6">
            <div className="w-16 h-16 rounded-2xl bg-accent-purple/10 flex items-center justify-center text-accent-purple shadow-inner">
-              <Eraser size={32} />
+              {mode === "bg-remove" ? <ImageIcon size={32} /> : <Eraser size={32} />}
            </div>
            <div className="space-y-1">
-              <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">Magic Eraser Pro</h2>
-              <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Powered by Neural-X Inpainting</p>
+              <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">
+                {mode === "bg-remove" ? "Background Remover" : "Object Eraser"}
+              </h2>
+              <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">
+                {mode === "bg-remove" ? "Professional AI Cutouts" : "Studio-Grade Retouching"}
+              </p>
            </div>
+        </div>
+
+        <div className="flex items-center gap-4 bg-black/40 p-1.5 rounded-2xl border border-white/5">
+           <button 
+             onClick={() => { setMode("bg-remove"); setResult(null); }}
+             className={cn(
+               "flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+               mode === "bg-remove" ? "bg-white/10 text-white shadow-xl" : "text-zinc-500 hover:text-zinc-300"
+             )}
+           >
+              <LayoutGrid size={14} /> Background
+           </button>
+           <button 
+             onClick={() => { setMode("object-erase"); setResult(null); }}
+             className={cn(
+               "flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+               mode === "object-erase" ? "bg-white/10 text-white shadow-xl" : "text-zinc-500 hover:text-zinc-300"
+             )}
+           >
+              <Sparkles size={14} /> Objects
+           </button>
         </div>
 
         <div className="flex items-center gap-3">
@@ -300,7 +372,7 @@ export function MagicEraser() {
                className="group flex items-center gap-2 px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all font-black text-[10px] uppercase tracking-widest"
              >
                 <RefreshCw size={14} className="group-hover:rotate-180 transition-transform duration-500" /> 
-                New Image
+                New
              </button>
            )}
            {result && (
@@ -308,12 +380,12 @@ export function MagicEraser() {
                 onClick={() => {
                   const a = document.createElement("a");
                   a.href = result;
-                  a.download = `erased-${fileName}`;
+                  a.download = `${mode === 'bg-remove' ? 'cutout' : 'retouched'}-${fileName}`;
                   a.click();
                 }}
                 className="flex items-center gap-2 px-10 py-4 rounded-2xl premium-gradient text-white shadow-3xl hover:scale-105 active:scale-95 transition-all font-black text-[10px] uppercase tracking-[0.2em]"
               >
-                 <Download size={18} /> Export Masterpiece
+                 <Download size={18} /> Download Result
               </button>
            )}
         </div>
@@ -322,11 +394,13 @@ export function MagicEraser() {
       {/* MAIN CONTENT AREA */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 min-h-[650px]">
         
-        {/* LEFT SIDE: WORKSPACE / UPLOAD */}
+        {/* LEFT SIDE: SOURCE / UPLOAD */}
         <div className="relative rounded-[3rem] glass-dark border border-white/10 overflow-hidden flex flex-col shadow-4xl group/workspace">
            <div className="absolute top-6 left-6 z-20 flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
               <div className="w-2 h-2 rounded-full bg-accent-purple animate-pulse" />
-              <span className="text-[9px] font-black text-white uppercase tracking-widest">Workspace</span>
+              <span className="text-[9px] font-black text-white uppercase tracking-widest">
+                {mode === "bg-remove" ? "Image Source" : "Workspace"}
+              </span>
            </div>
 
            <div className="flex-1 flex items-center justify-center p-8 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
@@ -349,63 +423,62 @@ export function MagicEraser() {
                 </div>
               ) : (
                 <div className="relative max-w-full">
-                   <canvas ref={canvasRef} className="rounded-2xl shadow-2xl max-w-full block" />
-                   <canvas 
-                     ref={maskCanvasRef} 
-                     className={cn(
-                        "absolute top-0 left-0 cursor-crosshair max-w-full block",
-                        isProcessing && "pointer-events-none opacity-50"
-                     )}
-                     onMouseDown={startDrawing}
-                     onMouseMove={draw}
-                     onMouseUp={stopDrawing}
-                     onMouseLeave={stopDrawing}
-                     onTouchStart={startDrawing}
-                     onTouchMove={draw}
-                     onTouchEnd={stopDrawing}
-                   />
+                   {mode === "bg-remove" ? (
+                      <img src={image} className="rounded-2xl shadow-2xl max-w-full block" alt="Source" />
+                   ) : (
+                      <>
+                        <canvas ref={canvasRef} className="rounded-2xl shadow-2xl max-w-full block" />
+                        <canvas 
+                          ref={maskCanvasRef} 
+                          className={cn(
+                             "absolute top-0 left-0 cursor-crosshair max-w-full block",
+                             isProcessing && "pointer-events-none opacity-50"
+                          )}
+                          onMouseDown={startDrawing}
+                          onMouseMove={draw}
+                          onMouseUp={stopDrawing}
+                          onMouseLeave={stopDrawing}
+                          onTouchStart={startDrawing}
+                          onTouchMove={draw}
+                          onTouchEnd={stopDrawing}
+                        />
+                      </>
+                   )}
                 </div>
               )}
            </div>
 
            {/* WORKSPACE TOOLBAR */}
-           {image && (
+           {image && !result && (
              <div className="p-4 md:p-6 border-t border-white/5 flex flex-wrap items-center justify-between bg-black/40 gap-4">
-                <div className="flex flex-wrap items-center gap-3 md:gap-6">
-                   <div className="flex items-center gap-2 md:gap-3 bg-zinc-900/80 p-2 rounded-xl border border-white/5 shadow-inner">
-                      <button onClick={() => setBrushSize(Math.max(5, brushSize - 5))} className="p-1.5 md:p-2 text-zinc-500 hover:text-white transition-colors"><Minus size={14}/></button>
-                      <div className="flex flex-col items-center min-w-[45px] md:min-w-[50px]">
-                         <span className="text-[10px] font-black text-white">{brushSize}px</span>
-                         <span className="text-[8px] text-zinc-600 font-bold uppercase">Size</span>
+                {mode === "object-erase" && (
+                   <div className="flex flex-wrap items-center gap-3 md:gap-6">
+                      <div className="flex items-center gap-2 md:gap-3 bg-zinc-900/80 p-2 rounded-xl border border-white/5 shadow-inner">
+                         <button onClick={() => setBrushSize(Math.max(5, brushSize - 5))} className="p-1.5 md:p-2 text-zinc-500 hover:text-white transition-colors"><Minus size={14}/></button>
+                         <div className="flex flex-col items-center min-w-[45px]">
+                            <span className="text-[10px] font-black text-white">{brushSize}px</span>
+                            <span className="text-[8px] text-zinc-600 font-bold uppercase">Size</span>
+                         </div>
+                         <button onClick={() => setBrushSize(Math.min(150, brushSize + 5))} className="p-1.5 md:p-2 text-zinc-500 hover:text-white transition-colors"><Plus size={14}/></button>
                       </div>
-                      <button onClick={() => setBrushSize(Math.min(150, brushSize + 5))} className="p-1.5 md:p-2 text-zinc-500 hover:text-white transition-colors"><Plus size={14}/></button>
-                   </div>
-                   
-                   <div className="flex items-center gap-2 md:gap-3 bg-zinc-900/80 p-2 rounded-xl border border-white/5 shadow-inner">
-                      <button onClick={() => setBrushHardness(Math.max(1, brushHardness - 10))} className="p-1.5 md:p-2 text-zinc-500 hover:text-white transition-colors"><Minus size={14}/></button>
-                      <div className="flex flex-col items-center min-w-[45px] md:min-w-[50px]">
-                         <span className="text-[10px] font-black text-white">{brushHardness}%</span>
-                         <span className="text-[8px] text-zinc-600 font-bold uppercase">Hard</span>
+                      <div className="flex items-center gap-1.5">
+                         <button onClick={undo} disabled={maskHistoryIndex <= 0} className="p-2.5 rounded-xl bg-white/5 text-zinc-400 hover:text-white disabled:opacity-20 transition-all border border-white/5"><Undo2 size={16} /></button>
+                         <button onClick={redo} disabled={maskHistoryIndex >= maskHistory.length - 1} className="p-2.5 rounded-xl bg-white/5 text-zinc-400 hover:text-white disabled:opacity-20 transition-all border border-white/5"><Redo2 size={16} /></button>
                       </div>
-                      <button onClick={() => setBrushHardness(Math.min(100, brushHardness + 10))} className="p-1.5 md:p-2 text-zinc-500 hover:text-white transition-colors"><Plus size={14}/></button>
                    </div>
-                </div>
-
-                <div className="flex items-center gap-2 md:gap-3 ml-auto">
-                   <div className="flex items-center gap-1.5">
-                      <button onClick={undo} disabled={historyIndex <= 0} className="p-2.5 md:p-3 rounded-xl bg-white/5 text-zinc-400 hover:text-white disabled:opacity-20 transition-all border border-white/5" title="Undo"><Undo2 size={16} /></button>
-                      <button onClick={redo} disabled={historyIndex >= history.length - 1} className="p-2.5 md:p-3 rounded-xl bg-white/5 text-zinc-400 hover:text-white disabled:opacity-20 transition-all border border-white/5" title="Redo"><Redo2 size={16} /></button>
-                   </div>
-                   <div className="w-px h-6 bg-zinc-800 mx-1 md:mx-2" />
-                   <button 
-                      onClick={processEraser} 
-                      disabled={isProcessing} 
-                      className="flex items-center gap-2 px-6 md:px-8 py-3 rounded-xl premium-gradient text-white font-black text-[9px] md:text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap"
-                   >
-                      {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-                      <span>Erase Now</span>
-                   </button>
-                </div>
+                )}
+                
+                <button 
+                   onClick={processAction} 
+                   disabled={isProcessing} 
+                   className={cn(
+                     "flex items-center gap-2 px-10 py-4 rounded-xl premium-gradient text-white font-black text-[10px] uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 whitespace-nowrap",
+                     mode === "bg-remove" && "mx-auto"
+                   )}
+                >
+                   {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                   <span>{mode === "bg-remove" ? "Remove Background" : "Erase Selected"}</span>
+                </button>
              </div>
            )}
         </div>
@@ -414,7 +487,7 @@ export function MagicEraser() {
         <div className="relative rounded-[3rem] glass-dark border border-white/10 overflow-hidden flex flex-col shadow-4xl group/result">
            <div className="absolute top-6 left-6 z-20 flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 backdrop-blur-md border border-white/10">
               <div className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="text-[9px] font-black text-white uppercase tracking-widest">Erased Result</span>
+              <span className="text-[9px] font-black text-white uppercase tracking-widest">Result</span>
            </div>
 
            <div className="flex-1 flex items-center justify-center p-8 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] relative">
@@ -425,8 +498,12 @@ export function MagicEraser() {
                       <div className="absolute inset-0 rounded-full border-4 border-t-accent-purple animate-spin" />
                    </div>
                    <div className="space-y-2">
-                      <h3 className="text-xl font-black text-white uppercase tracking-widest animate-pulse">Neural-X Erasing...</h3>
-                      <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">Reconstructing background details</p>
+                      <h3 className="text-xl font-black text-white uppercase tracking-widest animate-pulse">
+                        {mode === "bg-remove" ? "Removing background..." : "Erasing object..."}
+                      </h3>
+                      <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest">
+                        {mode === "bg-remove" ? "Generating high-quality cutout" : "Synthesizing realistic background"}
+                      </p>
                    </div>
                 </div>
               ) : result ? (
@@ -450,10 +527,11 @@ export function MagicEraser() {
                             className="absolute inset-0 overflow-hidden" 
                             style={{ clipPath: `inset(0 0 0 ${comparisonValue}%)` }}
                           >
-                             <img src={result} className="w-full h-auto block" alt="After" />
+                             <div className="w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]">
+                                <img src={result} className="w-full h-auto block" alt="After" />
+                             </div>
                           </div>
                           
-                          {/* SLIDER HANDLE */}
                           <div 
                             className="absolute inset-y-0 w-1 bg-white z-20 shadow-[0_0_20px_rgba(0,0,0,0.5)]"
                             style={{ left: `${comparisonValue}%` }}
@@ -476,7 +554,7 @@ export function MagicEraser() {
                           />
 
                           <div className="absolute top-4 left-1/4 -translate-x-1/2 px-4 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-[8px] font-black text-white uppercase tracking-widest pointer-events-none">Original</div>
-                          <div className="absolute top-4 right-1/4 translate-x-1/2 px-4 py-1.5 rounded-full bg-accent-purple/60 backdrop-blur-md border border-accent-purple/20 text-[8px] font-black text-white uppercase tracking-widest pointer-events-none">Erased</div>
+                          <div className="absolute top-4 right-1/4 translate-x-1/2 px-4 py-1.5 rounded-full bg-accent-purple/60 backdrop-blur-md border border-accent-purple/20 text-[8px] font-black text-white uppercase tracking-widest pointer-events-none">Result</div>
                        </div>
                     ) : (
                        <img src={result} className="w-full h-auto rounded-2xl shadow-4xl" alt="Final" />
@@ -496,10 +574,12 @@ export function MagicEraser() {
                  </div>
               ) : (
                 <div className="flex flex-col items-center gap-6 text-center opacity-20">
-                   <Eraser size={64} className="text-zinc-600" />
+                   <LayoutGrid size={64} className="text-zinc-600" />
                    <div className="space-y-1">
                       <p className="text-zinc-500 text-[10px] font-black uppercase tracking-[0.2em]">Ready for action</p>
-                      <p className="text-zinc-600 text-[8px] font-bold uppercase tracking-widest leading-loose">Paint over objects in the workspace to see magic happen</p>
+                      <p className="text-zinc-600 text-[8px] font-bold uppercase tracking-widest leading-loose">
+                        {mode === "bg-remove" ? "Upload an image to remove its background" : "Paint over objects to erase them naturally"}
+                      </p>
                    </div>
                 </div>
               )}
@@ -512,12 +592,12 @@ export function MagicEraser() {
                    onClick={() => {
                       const a = document.createElement("a");
                       a.href = result;
-                      a.download = `erased-${fileName}`;
+                      a.download = `${mode === 'bg-remove' ? 'cutout' : 'retouched'}-${fileName}`;
                       a.click();
                    }}
                    className="flex-1 flex items-center justify-center gap-3 py-5 rounded-2xl premium-gradient text-white font-black text-xs uppercase tracking-[0.2em] shadow-2xl hover:scale-[1.02] active:scale-95 transition-all"
                  >
-                    <Download size={20} /> Export Masterpiece
+                    <Download size={20} /> Download Result
                  </button>
                  <button 
                    onClick={resetAll}
@@ -534,8 +614,8 @@ export function MagicEraser() {
       {/* BOTTOM INFO PANEL */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
          {[
-           { icon: Zap, label: "AI Precision", value: "Sub-pixel accuracy", color: "text-amber-500" },
-           { icon: ShieldCheck, label: "Privacy", value: "Processed locally", color: "text-emerald-500" },
+           { icon: Zap, label: "AI Precision", value: mode === 'bg-remove' ? "Bria-AI RMBG" : "Flux Inpainting", color: "text-amber-500" },
+           { icon: ShieldCheck, label: "Quality", value: "Lossless export", color: "text-emerald-500" },
            { icon: History, label: "Cloud Sync", value: "History enabled", color: "text-accent-blue" }
          ].map((stat, i) => (
            <div key={i} className="p-6 rounded-3xl glass-dark border border-white/5 flex items-center gap-4 group hover:border-white/10 transition-all">
@@ -551,25 +631,5 @@ export function MagicEraser() {
       </div>
 
     </div>
-  );
-}
-
-function ShieldCheck({ size, className }: { size?: number, className?: string }) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width={size || 24} 
-      height={size || 24} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      className={className}
-    >
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
-      <path d="m9 12 2 2 4-4" />
-    </svg>
   );
 }

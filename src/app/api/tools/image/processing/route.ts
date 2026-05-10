@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     allowedTypes: ["image/png", "image/jpeg", "image/webp", "image/avif"],
     maxSize: 20 * 1024 * 1024, // 20MB
     creditCost: 1
-  }, async (buffer, jobId) => {
+  }, async (buffer, jobId, formData) => {
     
     let pipeline = sharp(buffer);
     let extension = "png";

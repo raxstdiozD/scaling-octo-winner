@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { ToolCard } from "@/components/ui/ToolCard";
 import GradientText from "@/components/ui/GradientText";
+import { PRICING_CONFIG } from "@/config/pricing";
 
 export function LandingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -201,17 +202,17 @@ export function LandingPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <ToolCard 
             id="image-eraser" 
-            name="Magic Eraser" 
-            description="Intelligently remove unwanted objects or people from any photo with pixel-perfect accuracy." 
+            name="Background Remover" 
+            description="Remove backgrounds from your photos instantly with professional-grade AI precision." 
             category="image" 
-            icon="Trash2" 
+            icon="ImageIcon" 
             href="/tools/image/eraser" 
             popular 
           />
           <ToolCard 
             id="ai-img-gen" 
             name="AI Image Generator" 
-            description="Transform your imagination into high-fidelity cinematic visuals using state-of-the-art latent diffusion." 
+            description="Transform your imagination into beautiful art and photos using advanced AI magic." 
             category="ai" 
             icon="Sparkles" 
             href="/tools/ai/img-gen" 
@@ -239,7 +240,7 @@ export function LandingPage() {
           <ToolCard 
             id="video-bg-remover" 
             name="AI Video Studio" 
-            description="Remove and replace video backgrounds instantly without green screens or manual rotoscoping." 
+            description="Remove and replace video backgrounds instantly without any manual work or green screens." 
             category="video" 
             icon="Video" 
             href="/tools/video/bg-remover" 
@@ -381,8 +382,8 @@ export function LandingPage() {
               <div className="pt-8 space-y-6">
                  <div className="flex flex-col items-center gap-2">
                     <div className="flex items-center gap-3">
-                       <span className="text-zinc-700 line-through text-xl font-bold">$24.99</span>
-                       <span className="text-white text-6xl font-black tracking-tighter">$9.99<span className="text-lg text-zinc-600 font-bold">/mo</span></span>
+                       <span className="text-zinc-700 line-through text-xl font-bold">$14.99</span>
+                       <span className="text-white text-6xl font-black tracking-tighter">${PRICING_CONFIG.PRO_PLAN.USD}<span className="text-lg text-zinc-600 font-bold">/mo</span></span>
                     </div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600 italic">Limited time launch pricing</p>
                  </div>

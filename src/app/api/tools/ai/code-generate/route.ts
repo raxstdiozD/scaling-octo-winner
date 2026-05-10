@@ -26,16 +26,21 @@ export async function POST(req: Request) {
       });
     }
 
-    // Check credits and Pro plan
+    // Credit system (Sync with Supabase)
+    const { data: creditData } = await supabase
+      .from('User')
+      .select('daily_credits, lifetime_credits, plan')
+      .eq('id', sbUser.id)
+      .single();
+
+    const dailyCredits = creditData?.daily_credits ?? 0;
+    const lifetimeCredits = creditData?.lifetime_credits ?? 0;
+    const totalCreditsAvailable = dailyCredits + lifetimeCredits;
+    const userPlan = creditData?.plan ?? user.plan;
+
     const cost = 5;
-    if (user.plan !== 'pro' && user.credits < cost) {
-      // If in development mode, automatically upgrade the user to pro so they can test
-      if (process.env.NODE_ENV === 'development') {
-        await prisma.user.update({ where: { id: user.id }, data: { plan: 'pro', credits: 1000 } });
-        user.plan = 'pro';
-      } else {
-        return NextResponse.json({ error: "Insufficient credits. Upgrade to Pro for unlimited coding!" }, { status: 403 });
-      }
+    if (userPlan !== 'pro' && totalCreditsAvailable < cost) {
+      return NextResponse.json({ error: "Insufficient credits. Upgrade to Pro for unlimited coding!" }, { status: 403 });
     }
 
     const { prompt, language, framework } = await req.json();
@@ -84,20 +89,51 @@ Instructions:
 
     const codeOutput = response.data.choices[0].message.content;
 
-    // Deduct credits
-    await prisma.$transaction([
-      prisma.user.update({ where: { id: user.id }, data: { credits: { decrement: cost } } }),
-      prisma.job.create({
-        data: {
-          userId: user.id,
-          toolType: 'ai-code',
-          status: 'COMPLETED',
-          originalUrl: prompt,
-          resultUrl: codeOutput,
-          metadata: { language, framework, model: "llama-3.3-70b-versatile" }
-        }
-      })
-    ]);
+    // Deduct credits (Sync with Supabase)
+    if (userPlan !== 'pro') {
+      let newLifetime = lifetimeCredits;
+      let newDaily = dailyCredits;
+
+      if (newLifetime >= cost) {
+        newLifetime -= cost;
+      } else {
+        const remaining = cost - newLifetime;
+        newLifetime = 0;
+        newDaily -= remaining;
+      }
+
+      await Promise.all([
+        prisma.user.update({ where: { id: user.id }, data: { credits: { decrement: cost } } }),
+        prisma.job.create({
+          data: {
+            userId: user.id,
+            toolType: 'ai-code',
+            status: 'COMPLETED',
+            originalUrl: prompt,
+            resultUrl: codeOutput,
+            metadata: { language, framework, model: "llama-3.3-70b-versatile" }
+          }
+        }),
+        supabase
+          .from('User')
+          .update({ 
+            lifetime_credits: newLifetime,
+            daily_credits: newDaily 
+          })
+          .eq('id', sbUser.id)
+      ]);
+    } else {
+       await prisma.job.create({
+          data: {
+            userId: user.id,
+            toolType: 'ai-code',
+            status: 'COMPLETED',
+            originalUrl: prompt,
+            resultUrl: codeOutput,
+            metadata: { language, framework, model: "llama-3.3-70b-versatile" }
+          }
+       });
+    }
 
     return NextResponse.json({ code: codeOutput });
 

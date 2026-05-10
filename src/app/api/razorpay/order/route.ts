@@ -16,15 +16,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { plan } = await req.json();
+    const { plan, currency = 'USD', amount: bodyAmount, tierId } = await req.json();
+    
+    // Default $6.99 USD (699 cents) for Pro
+    let amount = 699;
+    
+    if (plan === 'credits' && bodyAmount) {
+      amount = bodyAmount;
+    } else if (currency === 'INR') {
+      amount = 49900;
+    }
     
     const options = {
-      amount: 999, // $9.99 in cents
-      currency: 'USD',
+      amount,
+      currency,
       receipt: `receipt_${Date.now()}`,
       notes: {
         userId: user.id,
-        plan: 'pro',
+        plan: plan || 'pro',
+        tierId: tierId || null
       },
     };
 

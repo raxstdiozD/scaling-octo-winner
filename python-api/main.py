@@ -11,6 +11,10 @@ from demucs.pretrained import get_model
 from demucs.apply import apply_model
 from demucs.audio import AudioFile, save_audio
 import imageio_ffmpeg
+from rembg import remove
+from fastapi.responses import Response
+import io
+from PIL import Image
 
 app = FastAPI(title="Lumora Vocal Remover Backend")
 
@@ -138,6 +142,22 @@ async def separate_audio(file: UploadFile = File(...), stems: int = 2):
 @app.get("/health")
 async def health():
     return {"status": "ready", "model": "htdemucs"}
+
+@app.post("/image/remove-bg")
+async def remove_bg(file: UploadFile = File(...)):
+    """
+    Removes background from an image using rembg.
+    """
+    try:
+        input_data = await file.read()
+        
+        # Use rembg to remove background
+        output_data = remove(input_data)
+        
+        return Response(content=output_data, media_type="image/png")
+    except Exception as e:
+        print(f"Background Removal Error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,7 +1,44 @@
+import { Metadata } from "next";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { Dashboard } from "@/components/tool/Dashboard";
 import { LandingPage } from "@/components/layout/LandingPage";
 import { createClient } from "@/utils/supabase/server";
 import { CategorySection } from "@/components/tool/CategorySection";
+import { constructMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = constructMetadata({
+  title: "Lumora - All-in-One AI Tools | Free Background Remover, Image Generator & More",
+  description: "Experience the elite AI-powered studio. Remove backgrounds, generate images, edit videos, restore photos, and create music — everything you need in one simple place.",
+});
+
+const faqSchema = {
+  mainEntity: [
+    {
+      "@type": "Question",
+      name: "Is Lumora free to use?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Yes, Lumora offers a generous free tier for all our tools, including our flagship background remover and AI image generator."
+      }
+    },
+    {
+      "@type": "Question",
+      name: "What AI tools does Lumora offer?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "Lumora provides over 50+ AI tools including AI Image Generation, Background Removal, Vocal Separation, PDF Processing, and AI Writing."
+      }
+    },
+    {
+      "@type": "Question",
+      name: "Do I need a credit card to sign up?",
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: "No credit card is required to start using Lumora's free tools."
+      }
+    }
+  ]
+};
 
 export default async function Home() {
   const supabase = await createClient();
@@ -13,6 +50,7 @@ export default async function Home() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto py-12">
+      <JsonLd type="FAQPage" data={faqSchema} />
       {/* 1. Main Interactive Dashboard */}
       <Dashboard />
 

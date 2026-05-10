@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { prisma } from "@/lib/prisma";
 
 export async function toggleFavorite(toolId: string) {
   const supabase = await createClient();
@@ -13,35 +14,52 @@ export async function toggleFavorite(toolId: string) {
 
   const userId = session.user.id;
 
-  // Check if already favorited
-  const { data: existing } = await supabase
-    .from('Favorite')
-    .select('id')
-    .eq('userId', userId)
-    .eq('toolId', toolId)
-    .single();
+  try {
+    // Ensure the user exists in Prisma db
+    const userExists = await prisma.user.findUnique({
+      where: { id: userId }
+    });
 
-  if (existing) {
-    // Remove from favorites
-    const { error } = await supabase
-      .from('Favorite')
-      .delete()
-      .eq('userId', userId)
-      .eq('toolId', toolId);
-    
-    if (error) return { error: error.message };
-  } else {
-    // Add to favorites
-    const { error } = await supabase
-      .from('Favorite')
-      .insert([{ userId, toolId }]);
-    
-    if (error) return { error: error.message };
+    if (!userExists) {
+      await prisma.user.create({
+        data: {
+          id: userId,
+          email: session.user.email!,
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0],
+          plan: "free"
+        }
+      });
+    }
+
+    // Check if already favorited
+    const existing = await prisma.favorite.findUnique({
+      where: {
+        userId_toolId: {
+          userId,
+          toolId
+        }
+      }
+    });
+
+    if (existing) {
+      // Remove from favorites
+      await prisma.favorite.delete({
+        where: { id: existing.id }
+      });
+    } else {
+      // Add to favorites
+      await prisma.favorite.create({
+        data: { userId, toolId }
+      });
+    }
+
+    revalidatePath('/favorites');
+    revalidatePath('/'); // Revalidate dashboard
+    return { success: true, isFavorited: !existing };
+  } catch (error: any) {
+    console.error("Favorites Action Error:", error);
+    return { error: error.message };
   }
-
-  revalidatePath('/favorites');
-  revalidatePath('/'); // Revalidate dashboard
-  return { success: true, isFavorited: !existing };
 }
 
 export async function getFavorites() {
@@ -50,10 +68,14 @@ export async function getFavorites() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return [];
 
-  const { data } = await supabase
-    .from('Favorite')
-    .select('toolId')
-    .eq('userId', session.user.id);
-
-  return data?.map(f => f.toolId) || [];
+  try {
+    const data = await prisma.favorite.findMany({
+      where: { userId: session.user.id },
+      select: { toolId: true }
+    });
+    return data.map(f => f.toolId);
+  } catch (error) {
+    console.error("Error getting favorites:", error);
+    return [];
+  }
 }

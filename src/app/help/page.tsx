@@ -44,44 +44,17 @@ export default function HelpPage() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-          {/* Live Chat Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative group p-12 rounded-[4rem] glass-dark border border-white/5 overflow-hidden transition-all duration-700 hover:border-white/20"
-          >
-            <div className="absolute inset-0 bg-linear-to-br from-accent-purple/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-            
-            <div className="relative z-10 space-y-10">
-              <div className="w-20 h-20 rounded-3xl bg-accent-purple/10 border border-accent-purple/20 flex items-center justify-center text-accent-purple shadow-[0_0_40px_rgba(168,85,247,0.15)] group-hover:scale-110 transition-transform duration-500">
-                <MessageSquare size={36} />
-              </div>
-              <div className="space-y-4">
-                <h2 className="text-4xl font-black text-white italic tracking-tighter uppercase">Live Chat</h2>
-                <p className="text-zinc-500 font-medium text-lg leading-relaxed">
-                  Real-time assistance for urgent tasks. Typical response time is under <span className="text-white">5 minutes</span> for Pro members.
-                </p>
-              </div>
-              <button className="group/btn relative w-full h-20 rounded-2xl overflow-hidden bg-white text-black font-black text-xs uppercase tracking-[0.3em] transition-all hover:scale-[1.02] active:scale-95">
-                <div className="absolute inset-0 bg-linear-to-r from-accent-purple to-accent-cyan opacity-0 group-hover/btn:opacity-100 transition-opacity" />
-                <span className="relative z-10 group-hover/btn:text-white transition-colors flex items-center justify-center gap-3">
-                   Start Conversation <Zap size={16} />
-                </span>
-              </button>
-            </div>
-          </motion.div>
-
+        <div className="flex justify-center">
           {/* Email Support Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="relative group p-12 rounded-[4rem] glass-dark border border-white/5 overflow-hidden transition-all duration-700 hover:border-white/20"
+            className="relative group p-12 rounded-[4rem] glass-dark border border-white/5 overflow-hidden transition-all duration-700 hover:border-white/20 max-w-2xl w-full"
           >
             <div className="absolute inset-0 bg-linear-to-br from-accent-cyan/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
             
-            <div className="relative z-10 space-y-10">
+            <div className="relative z-10 space-y-10 flex flex-col items-center text-center">
               <div className="w-20 h-20 rounded-3xl bg-accent-cyan/10 border border-accent-cyan/20 flex items-center justify-center text-accent-cyan shadow-[0_0_40px_rgba(34,211,238,0.15)] group-hover:scale-110 transition-transform duration-500">
                 <Mail size={36} />
               </div>
@@ -91,9 +64,12 @@ export default function HelpPage() {
                   Detailed inquiries or bug reports. We guarantee a response within <span className="text-white">24 business hours</span>.
                 </p>
               </div>
-              <button className="w-full h-20 rounded-2xl bg-white/5 border border-white/10 text-zinc-400 font-black text-xs uppercase tracking-[0.3em] hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all flex items-center justify-center gap-3">
-                support@lumora.ai <Send size={16} />
-              </button>
+              <a 
+                href="mailto:careers@lumoraai.online"
+                className="w-full h-20 rounded-2xl bg-white/5 border border-white/10 text-zinc-400 font-black text-xs uppercase tracking-[0.3em] hover:text-white hover:border-white/20 hover:bg-white/[0.08] transition-all flex items-center justify-center gap-3"
+              >
+                careers@lumoraai.online <Send size={16} />
+              </a>
             </div>
           </motion.div>
         </div>

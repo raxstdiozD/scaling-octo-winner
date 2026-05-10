@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     allowedTypes: ["application/pdf"],
     maxSize: 50 * 1024 * 1024, // 50MB
     creditCost: 1
-  }, async (buffer, jobId) => {
+  }, async (buffer, jobId, formData) => {
     
     const fileName = `result_${jobId}.pdf`;
     const fullPath = path.join(STORAGE_PATH, fileName);

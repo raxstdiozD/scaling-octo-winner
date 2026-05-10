@@ -6,8 +6,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -25,9 +26,13 @@ model User {
   favorites     Favorite[]
   chatSessions  ChatSession[]
   credits       Int       @default(20)
+  lifetimeCredits Int     @default(0)
   
   // Usage Tracking
   plan              String    @default("free") // "free" | "pro"
+  subscriptionId    String?
+  subscriptionStatus String   @default("none") // "none" | "active" | "cancelled"
+  planExpiresAt     DateTime?
   aiGenerationsUsed Int       @default(0)
   aiGenerationsLimit Int      @default(50)
   nextResetDate     DateTime?

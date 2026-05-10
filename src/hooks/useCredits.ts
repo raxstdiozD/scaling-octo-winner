@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
+import { PRICING_CONFIG } from '@/config/pricing';
 
 export interface CreditState {
   dailyCredits: number;
@@ -18,7 +19,7 @@ const FREE_LIMITS = {
 };
 
 const PRO_LIMITS = {
-  credits: 1500,
+  credits: PRICING_CONFIG.PRO_PLAN.DAILY_CREDITS,
   messages: Infinity
 };
 
@@ -239,6 +240,7 @@ export function useCredits() {
     showUpsell,
     setShowUpsell,
     notification,
+    toast: showNotification,
     refreshCredits: fetchCredits
   };
 }

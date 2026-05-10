@@ -156,25 +156,25 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-16 lg:gap-8 mb-32">
           
           {/* Brand Identity */}
-          <div className="lg:col-span-4 space-y-10">
+          <div className="lg:col-span-4 flex flex-col items-center lg:items-start text-center lg:text-left space-y-10">
             <div className="space-y-6">
-              <Link href="/" className="flex items-center gap-4 group w-fit">
+              <Link href="/" className="flex flex-col lg:flex-row items-center gap-4 group w-fit mx-auto lg:mx-0">
                 <div className="w-14 h-14 rounded-2xl premium-gradient p-[1.5px] group-hover:rotate-6 transition-transform duration-500">
                   <div className="w-full h-full bg-black rounded-[14px] flex items-center justify-center">
                     <Shield className="text-white fill-white/10" size={24} />
                   </div>
                 </div>
-                <div className="flex flex-col">
+                <div className="flex flex-col items-center lg:items-start text-center lg:text-left">
                   <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic leading-none">Lumora</h2>
                   <p className="text-[10px] font-black uppercase tracking-[0.4em] text-accent-purple mt-2">All-in-one Creative Hub</p>
                 </div>
               </Link>
-              <p className="text-zinc-500 font-medium leading-relaxed max-w-sm text-base">
+              <p className="text-zinc-500 font-medium leading-relaxed max-w-sm text-base mx-auto lg:mx-0">
                 Making professional creative tools simple for everyone. The best way to use AI for your daily tasks.
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 justify-center lg:justify-start">
               <SocialLink href="#" icon={<TwitterIcon size={20} />} label="Twitter" />
               <SocialLink href="#" icon={<GithubIcon size={20} />} label="GitHub" />
               <SocialLink href="#" icon={<DiscordIcon size={20} />} label="Discord" />
@@ -182,13 +182,13 @@ export function Footer() {
           </div>
 
           {/* Links Grid */}
-          <div className="lg:col-span-8 grid grid-cols-2 md:grid-cols-3 gap-12 lg:pl-12">
+          <div className="lg:col-span-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-12 lg:pl-12 text-center lg:text-left">
             {FOOTER_LINKS.map((section) => (
-              <div key={section.title} className="space-y-8">
+              <div key={section.title} className="space-y-8 flex flex-col items-center lg:items-start">
                 <h3 className="text-[11px] font-black uppercase tracking-[0.5em] text-white/30">{section.title}</h3>
                 <ul className="space-y-5">
                   {section.links.map((link) => (
-                    <li key={link.name}>
+                    <li key={link.name} className="flex justify-center lg:justify-start">
                       <Link 
                         href={link.href}
                         className="text-zinc-500 hover:text-white transition-all font-semibold text-sm flex items-center gap-2 group w-fit hover:translate-x-1"
@@ -207,7 +207,7 @@ export function Footer() {
 
         {/* 4. Tech Status Bar (Bottom) */}
         <div className="pt-12 border-t border-white/5">
-          <div className="flex flex-col lg:flex-row items-center justify-between gap-10">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-10 text-center lg:text-left">
             {/* Copyright & Info */}
             <div className="flex flex-col md:flex-row items-center gap-8 text-[11px] font-black uppercase tracking-[0.3em] text-zinc-600">
               <span>© 2026 LUMORA PLATFORM</span>

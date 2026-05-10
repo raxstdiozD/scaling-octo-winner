@@ -84,11 +84,50 @@ export async function POST(
 
       const generatedText = groqResponse.data.choices[0].message.content;
 
-      // Deduct Credits
-      await prisma.user.update({
-        where: { id: currentUser.id },
-        data: { credits: { decrement: 2 } }
-      });
+      // Sync & Check Credits from Supabase
+      const { data: creditData } = await supabase
+        .from('User')
+        .select('daily_credits, lifetime_credits, plan')
+        .eq('id', sbUser.id)
+        .single();
+
+      const dailyCredits = creditData?.daily_credits ?? 0;
+      const lifetimeCredits = creditData?.lifetime_credits ?? 0;
+      const totalCreditsAvailable = dailyCredits + lifetimeCredits;
+      const userPlan = creditData?.plan ?? currentUser.plan;
+      const cost = 2;
+
+      if (totalCreditsAvailable < cost) {
+        return NextResponse.json({ error: "Insufficient credits" }, { status: 403 });
+      }
+
+      // ... existing Groq API call logic ...
+
+      // Deduct Credits (Sync with Supabase)
+      let newLifetime = lifetimeCredits;
+      let newDaily = dailyCredits;
+
+      if (newLifetime >= cost) {
+        newLifetime -= cost;
+      } else {
+        const remaining = cost - newLifetime;
+        newLifetime = 0;
+        newDaily -= remaining;
+      }
+
+      await Promise.all([
+        prisma.user.update({
+          where: { id: currentUser.id },
+          data: { credits: { decrement: cost } }
+        }),
+        supabase
+          .from('User')
+          .update({ 
+            lifetime_credits: newLifetime,
+            daily_credits: newDaily 
+          })
+          .eq('id', sbUser.id)
+      ]);
 
       return NextResponse.json({ 
         success: true, 

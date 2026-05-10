@@ -15,7 +15,8 @@ import {
   X,
   Sparkles,
   ChevronRight,
-  Clock
+  Clock,
+  Crown
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
@@ -23,6 +24,7 @@ import GradientText from "../ui/GradientText";
 import PremiumButton from "../ui/PremiumButton";
 import { usePro } from "@/hooks/usePro";
 import { useTranslation } from "react-i18next";
+import { VerifiedTick } from "../ui/VerifiedTick";
 
 interface SidebarItemProps {
   name: string;
@@ -41,24 +43,31 @@ function SidebarItem({ name, icon: Icon, href, isActive, accentColor = "text-acc
         whileHover="hover"
         whileTap={{ scale: 0.98 }}
         className={cn(
-          "relative h-[56px] flex items-center gap-4 px-6 rounded-2xl transition-all duration-300 group",
+          "relative h-[52px] flex items-center gap-3.5 px-5 rounded-2xl transition-all duration-300 group mb-1",
           isActive ? "text-white" : "text-zinc-500 hover:text-zinc-200"
         )}
       >
-        {/* Active Background Glow */}
+        {/* Active Background - Glassmorphic Depth */}
         {isActive && (
           <motion.div 
             layoutId="sidebarActiveBg"
-            className="absolute inset-0 bg-zinc-900/60 rounded-2xl border border-white/5 shadow-[0_0_30px_rgba(0,0,0,0.5)] -z-10"
+            className="absolute inset-0 bg-white/[0.03] backdrop-blur-md rounded-2xl border border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] -z-10"
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
           />
         )}
         
-        {/* Active Left Accent Bar */}
+        {/* Hover Glow Background */}
+        <div className="absolute inset-0 bg-white/[0.02] rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity -z-20" />
+
+        {/* Active Left Accent Indicator - Cinematic Glow */}
         {isActive && (
           <motion.div 
             layoutId="sidebarActiveBar"
-            className="absolute left-0 w-1.5 h-8 premium-gradient rounded-r-full shadow-[0_0_20px_rgba(124,58,237,0.8)]"
+            className={cn(
+              "absolute left-0 w-1 h-6 rounded-r-full shadow-[0_0_15px_rgba(168,85,247,0.5)] z-20",
+              accentColor.includes('purple') ? "bg-accent-purple" : "bg-current"
+            )}
+            style={{ backgroundColor: !accentColor.includes('purple') ? glowColor.replace('0.5', '0.8') : undefined }}
             transition={{ type: "spring", stiffness: 350, damping: 30 }}
           />
         )}
@@ -66,43 +75,40 @@ function SidebarItem({ name, icon: Icon, href, isActive, accentColor = "text-acc
         <div className="relative">
           <motion.div
             variants={{
-              hover: { scale: 1.15, rotate: 5 }
+              hover: { scale: 1.1, y: -1 }
             }}
-            transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            transition={{ type: "spring", stiffness: 400, damping: 15 }}
             className={cn(
-              "p-2 rounded-xl transition-all",
-              isActive ? "bg-accent-purple/10 text-accent-purple" : "bg-transparent"
+              "w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+              isActive ? "bg-zinc-900 border border-white/10" : "bg-transparent"
             )}
-            style={{ 
-              color: isActive ? undefined : undefined,
-              boxShadow: isActive ? `0 0 15px ${glowColor.replace('0.5', '0.2')}` : 'none'
-            }}
           >
-            <Icon size={22} className={cn("transition-colors", isActive ? accentColor : "group-hover:text-white")} />
+            <Icon size={18} className={cn("transition-colors duration-300", isActive ? accentColor : "group-hover:text-white")} />
           </motion.div>
-          {/* Subtle icon glow on hover */}
-          <div className="absolute inset-0 blur-lg opacity-0 group-hover:opacity-40 transition-opacity bg-current -z-10" style={{ color: glowColor }} />
+          
+          {/* Dynamic Icon Glow */}
+          <div 
+            className="absolute inset-0 blur-lg opacity-0 group-hover:opacity-30 transition-opacity -z-10 scale-150" 
+            style={{ backgroundColor: glowColor }} 
+          />
         </div>
 
-        <motion.span 
-          variants={{
-            hover: { x: 4 }
-          }}
+        <span 
           className={cn(
-            "text-sm font-bold tracking-tight transition-all",
+            "text-[13px] font-black tracking-tight transition-all duration-300",
             isActive ? "text-white" : "group-hover:text-zinc-100"
           )}
         >
-          {name === 'Go Pro' ? <GradientText className="text-sm">{name}</GradientText> : name}
-        </motion.span>
+          {name === 'Go Pro' ? <GradientText className="text-[13px] font-black tracking-tight">{name}</GradientText> : name}
+        </span>
         
         {isActive && (
           <motion.div 
-            initial={{ opacity: 0, x: -10 }}
+            initial={{ opacity: 0, x: -5 }}
             animate={{ opacity: 1, x: 0 }}
-            className="ml-auto text-accent-purple/50"
+            className="ml-auto opacity-20"
           >
-            <ChevronRight size={14} />
+            <ChevronRight size={12} />
           </motion.div>
         )}
       </motion.div>
@@ -170,7 +176,10 @@ export function Sidebar() {
     <>
       {/* Mobile Trigger */}
       <button 
-        className="fixed top-6 left-6 z-50 p-3 lg:hidden glass-dark rounded-[1.25rem] shadow-2xl border-white/10 text-white"
+        className={cn(
+          "fixed top-6 z-[150] p-3 lg:hidden glass-dark rounded-[1.25rem] shadow-2xl border-white/10 text-white transition-all duration-500",
+          isOpen ? "left-[224px]" : "left-6"
+        )}
         onClick={() => setIsOpen(!isOpen)}
       >
         {isOpen ? <X size={20} /> : <Menu size={20} />}
@@ -195,38 +204,44 @@ export function Sidebar() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -280, opacity: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed inset-y-0 left-0 z-40 w-[280px] bg-zinc-950/90 backdrop-blur-xl border-r border-zinc-800 shadow-2xl lg:static lg:inset-0"
+              className="fixed inset-y-0 left-0 z-[140] w-[280px] bg-zinc-950/90 backdrop-blur-xl border-r border-zinc-800 shadow-2xl lg:static lg:inset-0"
             >
               <div suppressHydrationWarning className="flex flex-col h-full relative overflow-hidden">
-                {/* Background Noise/Gradient */}
-                <div suppressHydrationWarning className="absolute inset-0 bg-linear-to-b from-accent-purple/[0.03] to-transparent pointer-events-none" />
-                <div suppressHydrationWarning className="absolute inset-0 grain opacity-[0.02] pointer-events-none" />
+                {/* Background Noise/Gradient - Lux Style */}
+                <div suppressHydrationWarning className="absolute inset-0 bg-[#070708] pointer-events-none" />
+                <div suppressHydrationWarning className="absolute inset-0 bg-linear-to-b from-accent-purple/[0.05] via-transparent to-transparent pointer-events-none" />
+                <div suppressHydrationWarning className="absolute inset-0 grain opacity-[0.03] pointer-events-none" />
+                <div suppressHydrationWarning className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent-purple/10 blur-[120px] rounded-full pointer-events-none" />
 
-                {/* Logo Area */}
-                <div suppressHydrationWarning className="p-10">
-                  <Link href="/" className="flex items-center gap-4 group">
-                    <div suppressHydrationWarning className="relative">
-                      <div suppressHydrationWarning className="w-12 h-12 rounded-2xl premium-gradient flex items-center justify-center p-[2px] shadow-[0_0_30px_rgba(124,58,237,0.3)] group-hover:rotate-6 transition-transform">
-                        <div suppressHydrationWarning className="w-full h-full bg-zinc-950 rounded-[14px] flex items-center justify-center">
-                          <span className="text-white font-black text-2xl font-mono leading-none drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]">L</span>
-                        </div>
+                {/* Logo / Branding Section - High-Octane Branding */}
+                <div className="px-6 pt-12 pb-8 relative z-50">
+                  <Link href="/" className="flex flex-row items-center gap-4 group">
+                    {/* The Main "L" Terminal */}
+                    <div className="relative shrink-0 w-14 h-14 rounded-2xl bg-linear-to-br from-accent-purple via-accent-cyan to-accent-purple p-[1.5px] shadow-[0_0_40px_rgba(168,85,247,0.3)]">
+                      <div className="w-full h-full bg-[#050505] rounded-[14px] flex items-center justify-center relative overflow-hidden">
+                        <span className="text-white font-black text-2xl font-mono relative z-10">L</span>
                       </div>
-                      <div suppressHydrationWarning className="absolute -inset-2 bg-accent-purple/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full animate-pulse-glow" />
                     </div>
-                    <div suppressHydrationWarning className="flex flex-col">
-                      <span className="text-2xl font-black tracking-tighter text-white leading-tight">Lumora</span>
-                      <div suppressHydrationWarning className="flex items-center gap-1.5">
-                         <div suppressHydrationWarning className={cn(
-                           "w-1.5 h-1.5 rounded-full animate-pulse",
-                           isPro ? "bg-accent-purple shadow-[0_0_8px_rgba(168,85,247,0.8)]" : "bg-zinc-600"
-                         )} />
-                         <span className={cn(
-                           "text-[10px] font-black tracking-[0.3em] uppercase transition-colors",
-                           isPro ? "text-accent-purple" : "text-zinc-600"
-                         )}>
-                           {isPro ? <GradientText className="text-[10px]">PRO ACTIVE</GradientText> : t('common.pro')}
-                         </span>
+                    
+                    <div className="flex flex-col justify-center min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h1 className="text-2xl font-black tracking-tighter text-white leading-none m-0 p-0" style={{ color: '#ffffff', display: 'block' }}>
+                          Lumora<span className="text-accent-cyan">.</span>
+                        </h1>
                       </div>
+                      
+                      {!isProLoading && (
+                        isPro ? (
+                          <div className="flex mt-1.5">
+                            <div className="flex items-center gap-1 px-2 py-0.5 rounded bg-accent-purple/10 border border-accent-purple/30">
+                               <Crown size={8} className="text-accent-purple" fill="currentColor" />
+                               <span className="text-[7px] font-black tracking-widest uppercase text-accent-purple">PRO ACTIVE</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.2em] mt-1.5 opacity-80">AI STUDIO</span>
+                        )
+                      )}
                     </div>
                   </Link>
                 </div>
@@ -235,10 +250,13 @@ export function Sidebar() {
                 <nav suppressHydrationWarning className="flex-1 px-4 py-2 space-y-10 overflow-y-auto no-scrollbar relative z-10">
                   <LayoutGroup>
                     {/* Main Menu */}
-                    <motion.div variants={staggerVariants} initial="hidden" animate="visible" className="space-y-2">
+                    <motion.div variants={staggerVariants} initial="hidden" animate="visible" className="space-y-1">
                        <div className="flex items-center justify-between px-6 mb-4">
-                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-700">{t('common.dashboard')}</p>
-                          <div className="w-8 h-px bg-zinc-800/50" />
+                          <div className="flex items-center gap-2">
+                             <LayoutDashboard size={10} className="text-zinc-800" />
+                             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-700">Explore</p>
+                          </div>
+                          <div className="w-12 h-px bg-zinc-900/50" />
                        </div>
                        {topItems.map((item) => {
                          if (item.name === t('common.pro')) {
@@ -261,28 +279,35 @@ export function Sidebar() {
                     </motion.div>
 
                     {/* Categories Group */}
-                    <motion.div variants={staggerVariants} initial="hidden" animate="visible" className="space-y-2 pt-4">
+                    <motion.div variants={staggerVariants} initial="hidden" animate="visible" className="space-y-1 pt-4">
                        <div className="flex items-center justify-between px-6 mb-4">
                           <div className="flex items-center gap-2">
                              <Sparkles size={10} className="text-accent-purple" />
-                             <p className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-700">{t('common.tools')}</p>
+                             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-700">Studio Tools</p>
                           </div>
-                          <div className="w-8 h-px bg-zinc-800/50" />
+                          <div className="w-12 h-px bg-zinc-900/50" />
                        </div>
                        {CATEGORIES.map((cat) => {
                           const Icon = ICON_MAP[cat.icon];
                           const isActive = pathname === `/category/${cat.id}`;
                           const catName = t(`nav.${cat.id.replace(/-/g, '_')}_tools`, cat.name);
                           return (
-                            <SidebarItem 
-                              key={cat.id} 
-                              name={catName}
-                              icon={Icon}
-                              href={`/category/${cat.id}`}
-                              isActive={isActive}
-                              accentColor={cat.color}
-                              glowColor={catGlows[cat.id]}
-                            />
+                            <div key={cat.id} className="relative group/cat">
+                              <SidebarItem 
+                                name={catName}
+                                icon={Icon}
+                                href={`/category/${cat.id}`}
+                                isActive={isActive}
+                                accentColor={cat.color}
+                                glowColor={catGlows[cat.id]}
+                              />
+                              {cat.id === 'ai' && (
+                                <div className="absolute right-12 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-accent-purple/10 border border-accent-purple/20 shadow-[0_0_10px_rgba(168,85,247,0.2)] z-30">
+                                   <Crown size={8} className="text-accent-purple" fill="currentColor" />
+                                   <span className="text-[7px] font-black text-accent-purple uppercase tracking-widest">PRO</span>
+                                </div>
+                              )}
+                            </div>
                           );
                        })}
                     </motion.div>
@@ -291,12 +316,12 @@ export function Sidebar() {
 
                 {/* Footer Section - Premium Profile */}
                 <div className="p-6 mt-auto border-t border-white/5 bg-black/40 backdrop-blur-3xl">
-                   <div className="relative group rounded-[2rem] p-[1px] overflow-hidden transition-all duration-500 hover:scale-[1.02] active:scale-[0.98]">
-                      {/* Animated Border Glow */}
-                      <div className="absolute inset-0 bg-linear-to-r from-accent-purple/40 via-accent-cyan/40 to-accent-purple/40 opacity-0 group-hover:opacity-100 animate-spin-slow transition-opacity duration-700" />
+                   <div className="relative group rounded-[2rem] p-[1px] transition-all duration-500 hover:scale-[1.02] active:scale-[0.98]">
+                      {/* Premium Breathing Border Glow */}
+                      <div className="absolute inset-0 bg-linear-to-r from-accent-purple/20 via-accent-cyan/20 to-accent-purple/20 rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity duration-700 blur-[2px]" />
                       
-                      <div className="relative bg-zinc-950/80 rounded-[2rem] p-4 flex items-center gap-4 border border-white/5">
-                         <div className="absolute inset-0 bg-linear-to-br from-white/[0.03] to-transparent pointer-events-none" />
+                      <div className="relative bg-[#050505] rounded-[2rem] p-4 flex items-center gap-4 border border-white/10 group-hover:border-accent-purple/40 transition-colors duration-500">
+                         <div className="absolute inset-0 bg-linear-to-br from-white/[0.02] to-transparent pointer-events-none" />
                          
                          <div className="relative shrink-0">
                             <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/10 flex items-center justify-center overflow-hidden shadow-2xl relative z-10">
@@ -311,16 +336,14 @@ export function Sidebar() {
                             {/* Cinematic Ring */}
                             <div className="absolute -inset-1 border border-accent-purple/30 rounded-[1.2rem] opacity-0 group-hover:opacity-100 transition-opacity animate-pulse-glow" />
                             
-                            {isPro && (
-                               <div className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-accent-purple rounded-full border-4 border-[#09090b] shadow-[0_0_15px_rgba(168,85,247,0.8)] z-20" />
-                            )}
+                            <VerifiedTick className="absolute -bottom-1 -right-1 z-20" size="sm" />
                          </div>
                          
                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                               <p className="text-sm font-black text-white truncate tracking-tight leading-none italic">
-                                  {isPro ? <GradientText className="font-black italic">{fullName}</GradientText> : fullName}
-                               </p>
+                               <div className="text-sm font-black text-white truncate tracking-tight leading-none italic">
+                                  {isPro ? <GradientText className="font-black italic" animate={false}>{fullName}</GradientText> : fullName}
+                                </div>
                             </div>
                             <p className="text-[10px] font-bold text-zinc-600 truncate leading-none mt-1.5 uppercase tracking-widest group-hover:text-zinc-400 transition-colors">
                                {session?.user?.email?.split('@')[0] || "Explorer"}
@@ -344,5 +367,3 @@ export function Sidebar() {
     </>
   );
 }
-
-

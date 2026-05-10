@@ -21,17 +21,17 @@ const GradientText: React.FC<GradientTextProps> = ({
 }) => {
   return (
     <span className={cn(
-      "relative inline-block font-bold tracking-tight pb-2 pt-1", // Added padding to prevent clipping
+      "relative inline-flex items-center font-outfit font-black tracking-tighter", 
       className
     )}>
       <motion.span
         className={cn(
-          "bg-clip-text text-transparent relative z-10",
-          glow && "drop-shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+          "bg-clip-text text-transparent relative z-10"
         )}
         style={{
-          backgroundImage: "linear-gradient(to right, #A855F7, #22D3EE, #8B5CF6, #A855F7)",
+          backgroundImage: "linear-gradient(to right, #A855F7, #6366F1, #22D3EE, #A855F7)",
           backgroundSize: "200% auto",
+          WebkitBackgroundClip: "text",
         }}
         animate={
           animate
@@ -51,26 +51,28 @@ const GradientText: React.FC<GradientTextProps> = ({
       
       {/* Refined Metallic Shine Sweep */}
       {animate && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-lg">
-          <motion.div
-            className="absolute inset-y-0 w-24 opacity-0"
+        <span className="absolute inset-0 pointer-events-none overflow-hidden select-none">
+          <motion.span
+            className="absolute inset-y-0 w-full opacity-0"
             initial={{ x: "-100%" }}
             animate={{ 
               x: ["-100%", "200%"],
-              opacity: [0, 0.2, 0] // Much lower opacity for a subtle 'shimmer'
+              opacity: [0, 0.2, 0] 
             }}
             transition={{
               duration: 2.5,
               repeat: Infinity,
-              repeatDelay: 3,
+              repeatDelay: 5,
               ease: "easeInOut",
             }}
             style={{
-              background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
-              skewX: "-20deg" // Angled shine for a premium feel
+              background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent)",
+              skewX: "-20deg",
+              display: "block",
+              height: "100%"
             }}
           />
-        </div>
+        </span>
       )}
     </span>
   );

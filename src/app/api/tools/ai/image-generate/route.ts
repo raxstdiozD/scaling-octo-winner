@@ -1,77 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
 
-const COMFY_URL = "http://localhost:8188";
 const STORAGE_PATH = path.join(process.cwd(), "public", "generations");
-
-/**
- * Flux.1 Schnell Basic Workflow JSON Template
- * This structure corresponds to what ComfyUI expects.
- */
-const getFluxWorkflow = (prompt: string, width: number, height: number, seed: number, steps: number = 4) => ({
-  "3": {
-    "class_type": "KSampler",
-    "inputs": {
-      "cfg": 1,
-      "denoise": 1,
-      "latent_image": ["5", 0],
-      "model": ["10", 0],
-      "negative_conditioning": ["7", 0],
-      "positive_conditioning": ["6", 0],
-      "sampler_name": "euler_ancestral",
-      "scheduler": "simple",
-      "seed": seed,
-      "steps": steps
-    }
-  },
-  "4": {
-    "class_type": "VAEDecode",
-    "inputs": {
-      "samples": ["3", 0],
-      "vae": ["10", 1]
-    }
-  },
-  "5": {
-    "class_type": "EmptyLatentImage",
-    "inputs": {
-      "batch_size": 1,
-      "height": height,
-      "width": width
-    }
-  },
-  "6": {
-    "class_type": "CLIPTextEncode",
-    "inputs": {
-      "clip": ["10", 0],
-      "text": prompt
-    }
-  },
-  "7": {
-    "class_type": "CLIPTextEncode",
-    "inputs": {
-      "clip": ["10", 0],
-      "text": "bad eyes, bad hands, low resolution"
-    }
-  },
-  "9": {
-    "class_type": "SaveImage",
-    "inputs": {
-      "filename_prefix": "Lumora",
-      "images": ["4", 0]
-    }
-  },
-  "10": {
-    "class_type": "CheckpointLoaderSimple",
-    "inputs": {
-      "ckpt_name": "flux1-schnell.safetensors"
-    }
-  }
-});
 
 export async function POST(req: NextRequest) {
   try {
@@ -82,7 +18,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Please sign in to generate images" }, { status: 401 });
     }
 
-    // 1. Get or create user in Prisma with plan-based defaults
+    // 1. Get or create user in Prisma
     let user = await prisma.user.findUnique({
         where: { email: sbUser.email! }
     })
@@ -94,7 +30,7 @@ export async function POST(req: NextRequest) {
             email: sbUser.email!,
             name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0],
             plan: "free",
-            credits: 50, // 5 generations for free users
+            credits: 50,
             aiGenerationsLimit: 5,
             nextResetDate: new Date(new Date().getTime() + 24 * 60 * 60 * 1000)
         }
@@ -119,113 +55,201 @@ export async function POST(req: NextRequest) {
 
     if (!prompt) return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
 
-    // 3. Credit Check (10 credits per generation)
+    // 3. Sync Credits from Supabase (Source of Truth)
+    const { data: creditData } = await supabase
+      .from('User')
+      .select('daily_credits, lifetime_credits, plan')
+      .eq('id', sbUser.id)
+      .single();
+
+    const dailyCredits = creditData?.daily_credits ?? 0;
+    const lifetimeCredits = creditData?.lifetime_credits ?? 0;
+    const totalCreditsAvailable = dailyCredits + lifetimeCredits;
+    const userPlan = creditData?.plan ?? user.plan;
+
     const costPerGen = 10;
     const totalCost = costPerGen * n;
 
-    if (user.credits < totalCost) {
-      const upgradeMsg = user.plan === "free" 
+    if (totalCreditsAvailable < totalCost) {
+      const upgradeMsg = userPlan === "free" 
         ? "You've reached your free daily limit. Pro users get 1,000 credits daily (100+ generations). Upgrade now for unlimited creative flow!"
         : "You've reached your Pro daily limit. Please wait for the daily reset or contact support for higher limits.";
       
       return NextResponse.json({ 
         error: upgradeMsg,
-        needsUpgrade: user.plan === "free"
+        needsUpgrade: userPlan === "free"
       }, { status: 403 });
     }
 
-    let imageBuffer: Buffer;
-    let method = "flux-schnell-pollinations";
+    let imageBuffer: Buffer | null = null;
+    let method = "unknown";
 
-    try {
-      // PRIMARY METHOD: Pollinations AI (100% FREE & UNLIMITED)
-      // This is the best way to get Flux Schnell without costs
-      console.log("Using Pollinations Flux Schnell (Free)...");
-      const seed = Math.floor(Math.random() * 2147483647);
-      
-      // Constructing the optimized Pollinations URL
-      const cloudUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true&enhance=true`;
-      
-      const cloudResponse = await axios.get(cloudUrl, {
-        responseType: 'arraybuffer',
-        timeout: 40000 
-      });
+    // 4. GENERATION STRATEGY: Pro users get Fal.ai (Fastest), Free users get fallbacks
+    const falKey = process.env.FAL_KEY;
+    const isPro = userPlan === "pro";
 
-      const contentType = cloudResponse.headers['content-type'];
-      if (contentType && contentType.includes('text/html')) {
-        throw new Error("Pollinations returned an error page.");
-      }
-
-      imageBuffer = Buffer.from(cloudResponse.data);
-
-    } catch (pollError: any) {
-      console.error("Pollinations Primary Failed:", pollError.message);
-      
+    // --- STEP A: Try Fal.ai (Premium) for PRO users or as high-priority ---
+    if (falKey && (isPro || Math.random() > 0.8)) {
       try {
-        // SECONDARY FALLBACK: Hugging Face (Free Tier with Token)
-        console.log("Falling back to Hugging Face...");
-        const hfToken = process.env.HUGGINGFACE_TOKEN;
-        if (!hfToken) throw pollError;
-
-        const hfUrl = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell";
-        const hfResponse = await axios.post(hfUrl, {
-          inputs: prompt,
-          parameters: { width, height }
-        }, {
-          headers: { Authorization: `Bearer ${hfToken}` },
-          responseType: 'arraybuffer',
-          timeout: 30000
+        console.log("Attempting Premium Generation via Fal.ai...");
+        const falResponse = await fetch("https://fal.run/fal-ai/flux/schnell", {
+          method: "POST",
+          headers: {
+            "Authorization": `Key ${falKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            prompt: prompt,
+            image_size: { width, height },
+            num_inference_steps: isPro ? 6 : 4,
+            sync_mode: true
+          })
         });
-        
-        imageBuffer = Buffer.from(hfResponse.data);
-        method = "flux-schnell-hf-fallback";
-      } catch (hfError) {
-        throw new Error("All free generation services are currently busy. Please try again in a moment.");
+
+        if (!falResponse.ok) {
+          const errorData = await falResponse.text();
+          console.error(`Fal.ai API Error (${falResponse.status}):`, errorData);
+        } else {
+          const data = await falResponse.json();
+          if (data.images && data.images[0]?.url) {
+            console.log("Fal.ai Success! Downloading image...");
+            const imgResp = await axios.get(data.images[0].url, { 
+              responseType: 'arraybuffer',
+              timeout: 15000 
+            });
+            imageBuffer = Buffer.from(imgResp.data);
+            method = "fal-pro-schnell";
+          } else {
+            console.warn("Fal.ai returned success but no image URL:", data);
+          }
+        }
+      } catch (falError: any) {
+        console.error("Fal.ai Exception:", falError.message);
       }
     }
 
-    // 2. Save Locally to Public Folder
+    // --- STEP B: Try Pollinations AI (Free) if not already generated ---
+    if (!imageBuffer) {
+      try {
+        console.log("Using Pollinations Flux Schnell (Free)...");
+        const seed = Math.floor(Math.random() * 2147483647);
+        // Removed &enhance=true to prevent LLM latency/timeouts
+        const cloudUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true`;
+        
+        const cloudResponse = await axios.get(cloudUrl, {
+          responseType: 'arraybuffer',
+          timeout: 25000 // Shorter timeout for better user experience
+        });
+
+        const contentType = cloudResponse.headers['content-type'];
+        if (contentType && contentType.includes('text/html')) {
+          throw new Error("Pollinations returned an error page.");
+        }
+
+        imageBuffer = Buffer.from(cloudResponse.data);
+        method = "flux-schnell-pollinations";
+      } catch (pollError: any) {
+        console.error("Pollinations Failed:", pollError.message);
+      }
+    }
+
+    // --- STEP C: Try Hugging Face (Free Fallback) ---
+    if (!imageBuffer) {
+      try {
+        console.log("Falling back to Hugging Face...");
+        const hfToken = process.env.HUGGINGFACE_TOKEN;
+        if (hfToken) {
+          const hfUrl = "https://api-inference.huggingface.co/models/black-forest-labs/FLUX.1-schnell";
+          const hfResponse = await axios.post(hfUrl, {
+            inputs: prompt,
+            parameters: { width, height }
+          }, {
+            headers: { Authorization: `Bearer ${hfToken}` },
+            responseType: 'arraybuffer',
+            timeout: 25000
+          });
+          
+          imageBuffer = Buffer.from(hfResponse.data);
+          method = "flux-schnell-hf-fallback";
+        }
+      } catch (hfError: any) {
+        console.error("Hugging Face Failed:", hfError.message);
+      }
+    }
+
+    // --- FINAL CHECK ---
+    if (!imageBuffer) {
+      throw new Error("All generation services are currently busy. This usually happens during high traffic. Please try a different prompt or wait a minute.");
+    }
+
+    // 5. Save Locally to Public Folder
     await mkdir(STORAGE_PATH, { recursive: true });
     const localFileName = `flux_${uuidv4()}.png`;
     const localFilePath = path.join(STORAGE_PATH, localFileName);
     await writeFile(localFilePath, imageBuffer);
 
-    // 3. DB Record & Credit Deduction
+    // 6. DB Record & Credit Deduction
     const resultUrl = `/generations/${localFileName}`;
     
-    await prisma.$transaction([
-      prisma.job.create({
-        data: {
-          userId: user.id,
-          toolType: 'ai-img-gen',
-          status: 'COMPLETED',
-          resultUrl,
-          originalUrl: prompt,
-          // Store metadata (Prisma handles Json serialization)
-          metadata: { 
-            width, 
-            height, 
-            steps, 
-            guidance, 
-            model: 'flux-schnell',
-            timestamp: new Date().toISOString()
-          }
+    let newLifetime = lifetimeCredits;
+    let newDaily = dailyCredits;
+
+    if (newLifetime >= totalCost) {
+      newLifetime -= totalCost;
+    } else {
+      const remaining = totalCost - newLifetime;
+      newLifetime = 0;
+      newDaily = Math.max(0, newDaily - remaining);
+    }
+
+    const supabaseAdmin = createAdminClient();
+    
+    let newLifetime = lifetimeCredits;
+    let newDaily = dailyCredits;
+
+    if (newLifetime >= totalCost) {
+      newLifetime -= totalCost;
+    } else {
+      const remaining = totalCost - newLifetime;
+      newLifetime = 0;
+      newDaily = Math.max(0, newDaily - remaining);
+    }
+
+    const { error: sbFileError } = await supabaseAdmin
+      .from('UserFile')
+      .insert({
+        userId: sbUser.id,
+        toolType: 'ai-img-gen',
+        originalName: prompt.substring(0, 50),
+        originalUrl: prompt,
+        resultUrl,
+        fileType: 'image',
+        status: 'completed',
+        metadata: { 
+          width, height, steps, guidance, 
+          model: 'flux-schnell',
+          generationMethod: method,
+          timestamp: new Date().toISOString()
         }
-      }),
-      prisma.user.update({
-        where: { id: user.id },
-        data: { 
-          credits: { decrement: totalCost },
-          aiGenerationsUsed: { increment: n }
-        }
+      });
+
+    if (sbFileError) console.error("[Image Gen] Supabase history save failed:", sbFileError);
+
+    const { error: sbCreditError } = await supabaseAdmin
+      .from('User')
+      .update({ 
+        lifetime_credits: newLifetime,
+        daily_credits: newDaily 
       })
-    ]);
+      .eq('id', sbUser.id);
+
+    if (sbCreditError) console.error("[Image Gen] Supabase credit update failed:", sbCreditError);
 
     return NextResponse.json({ 
       success: true, 
       imageUrl: resultUrl,
       method,
-      creditsRemaining: user.credits - totalCost
+      creditsRemaining: totalCreditsAvailable - totalCost
     });
 
   } catch (error: any) {
@@ -235,3 +259,4 @@ export async function POST(req: NextRequest) {
     }, { status: 500 });
   }
 }
+

@@ -46,7 +46,7 @@ export function PaymentSuccessModal({ isOpen, onClose, type, amount }: PaymentSu
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+        <div key="payment-success-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-6">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

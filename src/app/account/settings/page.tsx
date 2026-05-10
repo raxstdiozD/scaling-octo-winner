@@ -25,6 +25,7 @@ import {
   Lock,
   Bell,
   Wallet,
+  Calendar,
   Clock,
   Crown,
   LayoutGrid,
@@ -43,6 +44,9 @@ import { cn } from "@/lib/utils";
 import GradientText from "@/components/ui/GradientText";
 import { useCredits } from "@/hooks/useCredits";
 import { BuyCreditsModal } from "@/components/credits/BuyCreditsModal";
+import { ManageSubscriptionModal } from "@/components/tool/ManageSubscriptionModal";
+import { InvoiceModal } from "@/components/ui/InvoiceModal";
+import { PRICING_CONFIG } from "@/config/pricing";
 
 async function getCroppedImg(imageSrc: string, pixelCrop: any): Promise<Blob> {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -85,6 +89,9 @@ export default function AccountSettings() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isBuyModalOpen, setIsBuyModalOpen] = useState(false);
+  const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
   const router = useRouter();
@@ -155,6 +162,22 @@ export default function AccountSettings() {
       if (error) throw error;
       setStatus({ type: 'success', message: 'Password reset email sent!' });
     } catch (error: any) { setStatus({ type: 'error', message: error.message || 'Failed to send reset email' }); } finally { setIsResetting(false); }
+  };
+
+  const handleCancelSubscription = async () => {
+    try {
+      setIsCancelling(true);
+      const response = await fetch('/api/razorpay/cancel', {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to cancel');
+      setStatus({ type: 'success', message: 'Subscription cancelled successfully' });
+      router.refresh();
+    } catch (error: any) {
+      setStatus({ type: 'error', message: error.message || 'Failed to cancel' });
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   const getHoursUntilReset = () => {
@@ -275,7 +298,7 @@ export default function AccountSettings() {
                                <button onClick={handleUpdateProfile} disabled={isUpdating || (name === (user.user_metadata?.full_name || "") && username === (dbUser?.username || ""))} className="flex items-center gap-3 px-10 py-5 rounded-2xl bg-white text-black font-black uppercase tracking-widest text-[10px] hover:bg-zinc-200 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
                                   {isUpdating ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                                   Sync Profile
-                               </button>
+                                </button>
                             </div>
                          </div>
                       </section>
@@ -296,9 +319,9 @@ export default function AccountSettings() {
                             <div className="absolute top-0 right-0 w-64 h-64 bg-accent-cyan/5 blur-[80px] pointer-events-none group-hover:bg-accent-cyan/10 transition-colors" />
                             <div className="space-y-8 relative z-10">
                                <div className="flex items-center gap-3 text-accent-cyan"><Zap size={20} className="fill-accent-cyan/20" /><span className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500">Daily Allowance</span></div>
-                               <div suppressHydrationWarning className="space-y-1"><h3 className="text-6xl font-black italic uppercase tracking-tighter text-white">{dailyCredits} <span className="text-2xl text-zinc-800 tracking-normal">/</span> <span className="text-2xl text-zinc-600">{isPro ? 1500 : 50}</span></h3><p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest italic">Replenishes Daily</p></div>
+                               <div suppressHydrationWarning className="space-y-1"><h3 className="text-6xl font-black italic uppercase tracking-tighter text-white">{dailyCredits} <span className="text-2xl text-zinc-800 tracking-normal">/</span> <span className="text-2xl text-zinc-600">{isPro ? PRICING_CONFIG.PRO_PLAN.DAILY_CREDITS : 50}</span></h3><p className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest italic">Replenishes Daily</p></div>
                                <div className="space-y-4">
-                                  <div className="h-2 w-full bg-zinc-900 rounded-full overflow-hidden p-[1px] border border-white/5"><motion.div initial={{ width: 0 }} animate={{ width: `${(dailyCredits / (isPro ? 1500 : 50)) * 100}%` }} className="h-full bg-linear-to-r from-accent-cyan to-blue-600 rounded-full shadow-[0_0_15px_rgba(0,255,255,0.2)]" /></div>
+                                  <div className="h-2 w-full bg-zinc-900 rounded-full overflow-hidden p-[1px] border border-white/5"><motion.div initial={{ width: 0 }} animate={{ width: `${(dailyCredits / (isPro ? PRICING_CONFIG.PRO_PLAN.DAILY_CREDITS : 50)) * 100}%` }} className="h-full bg-linear-to-r from-accent-cyan to-blue-600 rounded-full shadow-[0_0_15px_rgba(0,255,255,0.2)]" /></div>
                                   <div className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest text-zinc-600"><div className="flex items-center gap-1.5"><Clock size={10} />Resets in {getHoursUntilReset()} hours</div><div className="flex items-center gap-3"><button onClick={refreshCredits} className="hover:text-white transition-colors flex items-center gap-1"><RefreshCcw size={10} /> Sync</button></div></div>
                                </div>
                             </div>
@@ -330,16 +353,85 @@ export default function AccountSettings() {
                    </div>
                 )}
                 {activeTab === 'billing' && (
-                   <div className="space-y-8">
-                      <section className="glass-dark border border-white/5 rounded-[3rem] p-12 space-y-12 relative overflow-hidden">
-                         <div className="absolute top-0 right-0 w-64 h-64 bg-accent-purple/5 blur-[80px] pointer-events-none" /><div className="flex flex-col md:flex-row md:items-center justify-between gap-8"><div className="space-y-4"><h3 className="text-3xl font-black italic uppercase tracking-tighter text-white">Subscription</h3><p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Your current plan and billing cycle</p></div><div className="px-8 py-4 rounded-2xl bg-accent-purple/10 border border-accent-purple/20 text-accent-purple font-black uppercase tracking-widest text-xs italic">{isPro ? "Active Pro Plan" : "Free Explorer"}</div></div>
-                         <div className="p-10 rounded-[2.5rem] bg-white/[0.02] border border-white/5 space-y-8">
-                            <div className="flex items-center gap-6"><div className="w-20 h-20 rounded-[2rem] bg-zinc-900 border border-white/5 flex items-center justify-center text-accent-purple shadow-2xl"><Crown size={40} className={cn(isPro && "fill-accent-purple/20")} /></div><div><h4 className="text-2xl font-black italic uppercase tracking-tighter text-white">{isPro ? "Lumora Elite Pro" : "Lumora Free"}</h4><p className="text-[11px] font-medium text-zinc-500 uppercase tracking-widest">{isPro ? "Next billing date: June 1, 2026" : "Upgrade for premium AI tools"}</p></div></div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4"><button className="py-5 rounded-2xl bg-white text-black font-black uppercase tracking-widest text-[10px] hover:bg-zinc-200 transition-all">{isPro ? "Manage Billing" : "Upgrade Now"}</button><button className="py-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[10px] hover:bg-white/10 transition-all">View Invoices</button></div>
-                         </div>
-                      </section>
-                   </div>
-                )}
+                    <div className="space-y-8">
+                       <section className="glass-dark border border-white/5 rounded-[3rem] p-12 space-y-12 relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-64 h-64 bg-accent-purple/5 blur-[80px] pointer-events-none" />
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                            <div className="space-y-4">
+                              <h3 className="text-3xl font-black italic uppercase tracking-tighter text-white">Subscription</h3>
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Your current plan and billing cycle</p>
+                            </div>
+                            <div className={cn(
+                              "px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs italic border transition-all",
+                              isPro 
+                                ? "bg-accent-purple/10 border-accent-purple/20 text-accent-purple shadow-[0_0_20px_rgba(168,85,247,0.2)]" 
+                                : "bg-zinc-800/50 border-white/5 text-zinc-500"
+                            )}>
+                              {isPro ? "Active Pro Plan" : "Free Explorer"}
+                            </div>
+                          </div>
+
+                          <div className="p-10 rounded-[2.5rem] bg-white/[0.02] border border-white/5 space-y-10">
+                             <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+                                <div className="flex items-center gap-6">
+                                  <div className="w-20 h-20 rounded-[2rem] bg-zinc-900 border border-white/5 flex items-center justify-center text-accent-purple shadow-2xl relative overflow-hidden group">
+                                    <div className="absolute inset-0 bg-accent-purple/5 group-hover:bg-accent-purple/10 transition-colors" />
+                                    <Crown size={40} className={cn("relative z-10", isPro && "fill-accent-purple/20")} />
+                                  </div>
+                                  <div>
+                                    <h4 className="text-2xl font-black italic uppercase tracking-tighter text-white">
+                                      {isPro ? "Lumora Elite Pro" : "Lumora Free"}
+                                    </h4>
+                                    <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-widest mt-1">
+                                      {isPro 
+                                        ? dbUser?.subscription_status === 'cancelled' 
+                                          ? `Pro access ends on: ${new Date(dbUser.plan_expires_at).toLocaleDateString()}`
+                                          : `Next billing date: June 1, 2026` 
+                                        : "Upgrade for premium AI tools"}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {isPro && (
+                                   <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-emerald-500/5 border border-emerald-500/10">
+                                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                      <span className="text-[9px] font-black uppercase tracking-widest text-emerald-500/80">Secure & Verified</span>
+                                   </div>
+                                )}
+                             </div>
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <button 
+                                  onClick={() => isPro ? setIsManageModalOpen(true) : router.push('/pro')}
+                                  className="py-5 rounded-2xl bg-white text-black font-black uppercase tracking-widest text-[10px] hover:bg-zinc-200 hover:scale-[1.02] active:scale-98 transition-all shadow-xl"
+                                >
+                                  {isPro ? "Manage Subscription" : "Upgrade to Pro"}
+                                </button>
+                                <button 
+                                  onClick={() => setIsInvoiceModalOpen(true)}
+                                  className="py-5 rounded-2xl bg-white/5 border border-white/10 text-white font-black uppercase tracking-widest text-[10px] hover:bg-white/10 hover:border-white/20 transition-all"
+                                >
+                                  View Invoices
+                                </button>
+                             </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                             {[{ icon: Wallet, label: "Payment Method", value: "Razorpay" }, { icon: Calendar, label: "Cycle", value: "Monthly" }, { icon: Activity, label: "Status", value: isPro ? "Active" : "Standard" }].map((item, i) => (
+                               <div key={i} className="p-6 rounded-[1.75rem] bg-white/[0.01] border border-white/5 flex items-center gap-4">
+                                  <div className="w-10 h-10 rounded-xl bg-zinc-900 flex items-center justify-center text-zinc-600">
+                                     <item.icon size={18} />
+                                  </div>
+                                  <div>
+                                     <p className="text-[8px] font-black uppercase tracking-widest text-zinc-600">{item.label}</p>
+                                     <p className="text-xs font-bold text-white italic">{item.value}</p>
+                                  </div>
+                               </div>
+                             ))}
+                          </div>
+                       </section>
+                    </div>
+                 )}
                 {activeTab === 'preferences' && (
                    <div className="space-y-8">
                       <section className="glass-dark border border-white/5 rounded-[3rem] p-12 space-y-12">
@@ -368,6 +460,14 @@ export default function AccountSettings() {
         )}
       </AnimatePresence>
       <BuyCreditsModal isOpen={isBuyModalOpen} onClose={() => setIsBuyModalOpen(false)} />
+      <ManageSubscriptionModal 
+        isOpen={isManageModalOpen} 
+        onClose={() => setIsManageModalOpen(false)} 
+        user={dbUser}
+        onCancel={handleCancelSubscription}
+        isCancelling={isCancelling}
+      />
+      <InvoiceModal isOpen={isInvoiceModalOpen} onClose={() => setIsInvoiceModalOpen(false)} />
     </div>
   );
 }

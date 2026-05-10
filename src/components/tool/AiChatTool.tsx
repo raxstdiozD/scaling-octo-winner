@@ -35,7 +35,8 @@ import {
   PenTool,
   Rocket,
   Search,
-  ChartBar
+  ChartBar,
+  Crown
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { createClient } from "@/utils/supabase/client";
 import { useCredits } from "@/hooks/useCredits";
 import GradientText from "../ui/GradientText";
+import GradientHeading from "../ui/GradientHeading";
 
 // --- Types & Interfaces ---
 interface Message {
@@ -56,7 +58,9 @@ interface Message {
 interface ChatSession {
   id: string;
   title: string;
-  createdAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  lastMessage?: string;
 }
 
 // --- Constants ---
@@ -82,7 +86,6 @@ const STARTER_CARDS = [
 const SLASH_COMMANDS = [
   { id: 'new', icon: <Plus size={16} className="text-cyan-400" />, label: 'New Conversation', desc: 'Start a fresh creative session' },
   { id: 'clear', icon: <Trash2 size={16} className="text-red-400" />, label: 'Clear Chat', desc: 'Remove all messages from this view' },
-  { id: 'model', icon: <Cpu size={16} className="text-purple-400" />, label: 'Change Model', desc: 'Switch between available AI models' },
   { id: 'summarize', icon: <FileText size={16} className="text-emerald-400" />, label: 'Summarize Chat', desc: 'Generate a brief summary of the conversation' },
   { id: 'export', icon: <Share2 size={16} className="text-orange-400" />, label: 'Export Chat', desc: 'Save this conversation as a document' },
 ];
@@ -125,9 +128,10 @@ export function AiChatTool() {
   const [showCommands, setShowCommands] = useState(false);
   const [currentSuggestions, setCurrentSuggestions] = useState<any[]>([]);
   const [isRerolling, setIsRerolling] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   
   const [session, setSession] = useState<any>(null);
-  const { consumeMessage, messagesUsed, plan, isPro, notification } = useCredits();
+  const { consumeMessage, messagesUsed, plan, isPro, notification, toast } = useCredits();
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -198,26 +202,40 @@ export function AiChatTool() {
     }
   };
 
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+
   const executeCommand = (cmdId: string) => {
     setShowCommands(false);
     setInput('');
+    setSelectedCommandIndex(0);
+    
     if (cmdId === 'new') {
       startNewChat();
     } else if (cmdId === 'clear') {
-      setMessages([]);
+      if (messages.length === 0) {
+         toast("Nothing to clear. Start a conversation first.", "warning");
+         return;
+      }
+      setShowClearConfirm(true);
     } else if (cmdId === 'summarize') {
-      handleSend("Please provide a concise summary of our conversation so far.");
+      if (messages.length < 3) {
+         toast("Not enough messages to summarize yet. Keep chatting!", "warning");
+         return;
+      }
+      handleSend("Please provide a concise, professional summary of our conversation so far, highlighting key decisions or insights.");
     } else if (cmdId === 'export') {
-      const text = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
-      const blob = new Blob([text], { type: 'text/plain' });
+      if (messages.length === 0) {
+         toast("Nothing to export. Start a conversation first.", "warning");
+         return;
+      }
+      const text = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n---\n\n');
+      const blob = new Blob([`LUMORA CHAT EXPORT\nGenerated: ${new Date().toLocaleString()}\n\n${text}`], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `lumora-chat-${new Date().getTime()}.txt`;
       a.click();
-    } else if (cmdId === 'model') {
-      setAgentStatus("Switching Model...");
-      setTimeout(() => setAgentStatus("Ready to help"), 1500);
+      toast("Chat Exported Successfully", "success");
     }
   };
 
@@ -318,6 +336,21 @@ export function AiChatTool() {
     });
   };
 
+  const formatTimeAgo = (date: string) => {
+    const now = new Date();
+    const then = new Date(date);
+    const diff = now.getTime() - then.getTime();
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) return days === 1 ? 'Yesterday' : `${days}d ago`;
+    if (hours > 0) return `${hours}h ago`;
+    if (minutes > 0) return `${minutes}m ago`;
+    return 'Just now';
+  };
+
   // --- Render Helpers ---
   const renderMessageContent = (content: string) => {
     const parts = content.split(/(```[\s\S]*?```)/g);
@@ -357,6 +390,15 @@ export function AiChatTool() {
         if (!line.trim()) return <div key={li} className="h-4" />;
         
         // Headings
+        if (line.startsWith('###### ')) {
+          return <h6 key={li} className="text-sm font-black text-white mt-4 mb-2 uppercase tracking-widest">{line.slice(7)}</h6>;
+        }
+        if (line.startsWith('##### ')) {
+          return <h5 key={li} className="text-base font-black text-white mt-5 mb-2 tracking-tight">{line.slice(6)}</h5>;
+        }
+        if (line.startsWith('#### ')) {
+          return <h4 key={li} className="text-lg font-black text-white mt-6 mb-3 tracking-tight">{line.slice(5)}</h4>;
+        }
         if (line.startsWith('### ')) {
           return <h3 key={li} className="text-2xl font-black text-white mt-8 mb-4 tracking-tight">{line.slice(4)}</h3>;
         }
@@ -370,13 +412,13 @@ export function AiChatTool() {
         // Lists
         if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
           return (
-            <div key={li} className="flex gap-3 mb-2 ml-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 mt-2 shrink-0" />
+            <div key={li} className="flex gap-4 mb-4 ml-2 group/list">
+              <div className="w-1.5 h-1.5 rounded-full bg-accent-cyan mt-2.5 shrink-0 shadow-[0_0_10px_#00ffff] group-hover/list:scale-125 transition-transform" />
               <div className="flex-1">
                 {line.trim().slice(2).split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g).map((token, ti) => {
-                  if (token.startsWith('**') && token.endsWith('**')) return <strong key={ti} className="text-white font-black">{token.slice(2, -2)}</strong>;
-                  if (token.startsWith('*') && token.endsWith('*')) return <strong key={ti} className="text-white font-black">{token.slice(1, -1)}</strong>;
-                  if (token.startsWith('`') && token.endsWith('`')) return <code key={ti} className="bg-white/10 px-1.5 py-0.5 rounded text-cyan-400 font-mono text-sm border border-white/10">{token.slice(1, -1)}</code>;
+                  if (token.startsWith('**') && token.endsWith('**')) return <strong key={ti} className="text-white font-black tracking-tight">{token.slice(2, -2)}</strong>;
+                  if (token.startsWith('*') && token.endsWith('*')) return <strong key={ti} className="text-white font-black tracking-tight">{token.slice(1, -1)}</strong>;
+                  if (token.startsWith('`') && token.endsWith('`')) return <code key={ti} className="bg-white/10 px-2 py-0.5 rounded-lg text-accent-cyan font-mono text-sm border border-white/5">{token.slice(1, -1)}</code>;
                   return token;
                 })}
               </div>
@@ -422,9 +464,9 @@ export function AiChatTool() {
                 }
               }
 
-              if (token.startsWith('**') && token.endsWith('**')) return <strong key={ti} className="text-white font-black">{token.slice(2, -2)}</strong>;
-              if (token.startsWith('*') && token.endsWith('*')) return <strong key={ti} className="text-white font-black">{token.slice(1, -1)}</strong>;
-              if (token.startsWith('`') && token.endsWith('`')) return <code key={ti} className="bg-white/10 px-1.5 py-0.5 rounded text-cyan-400 font-mono text-sm border border-white/10">{token.slice(1, -1)}</code>;
+              if (token.startsWith('**') && token.endsWith('**')) return <strong key={ti} className="text-white font-black tracking-tight">{token.slice(2, -2)}</strong>;
+              if (token.startsWith('*') && token.endsWith('*')) return <strong key={ti} className="text-white font-black tracking-tight">{token.slice(1, -1)}</strong>;
+              if (token.startsWith('`') && token.endsWith('`')) return <code key={ti} className="bg-white/10 px-2 py-0.5 rounded-lg text-accent-cyan font-mono text-[14px] border border-white/5">{token.slice(1, -1)}</code>;
               return token;
             })}
           </p>
@@ -434,7 +476,7 @@ export function AiChatTool() {
   };
 
   return (
-    <div className="fixed inset-0 bg-[#050505] text-zinc-300 font-sans selection:bg-purple-500/30 overflow-hidden flex flex-col z-[100]">
+    <div suppressHydrationWarning className="fixed inset-0 bg-[#050505] text-zinc-300 font-sans selection:bg-purple-500/30 overflow-hidden flex flex-col z-[100]">
       
       {/* --- Ambient Background Glows --- */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -465,25 +507,68 @@ export function AiChatTool() {
                     New Conversation
                   </button>
 
-                  <div className="flex-1 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                    <div className="px-3 mb-4 text-zinc-600 flex items-center gap-2">
-                      <History size={14} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">History</span>
-                    </div>
-                    {sessions.map(s => (
-                      <div key={s.id} className="group relative">
-                        <button onClick={() => loadSession(s.id)} className={cn("w-full text-left pl-4 pr-10 py-3.5 rounded-xl transition-all flex items-center gap-3 border border-transparent", sessionId === s.id ? "bg-white/5 border-white/10 text-white" : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03]")}>
-                          <MessageSquare size={16} className={cn("shrink-0", sessionId === s.id ? "text-purple-400" : "text-zinc-700")} />
-                          <span className="truncate text-sm font-bold">{s.title || "Untitled Chat"}</span>
-                        </button>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); openDeleteModal(s.id); }} 
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-zinc-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
+                    <div className="px-4 mb-4 text-zinc-600 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <History size={14} className="text-zinc-500" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em]">History</span>
                       </div>
-                    ))}
+                      <span className="text-[9px] font-bold text-zinc-800 uppercase tracking-widest">{sessions.length} Chats</span>
+                    </div>
+
+                    {sessions.length === 0 ? (
+                       <div className="flex flex-col items-center justify-center py-10 px-6 text-center space-y-4 opacity-40">
+                          <div className="w-12 h-12 rounded-2xl bg-zinc-950 border border-white/5 flex items-center justify-center text-zinc-700">
+                             <MessageSquare size={20} />
+                          </div>
+                          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest leading-relaxed">No conversations yet.<br/>Start chatting!</p>
+                       </div>
+                    ) : (
+                       sessions.map(s => (
+                         <div key={s.id} className="group relative px-2">
+                           <button 
+                             onClick={() => loadSession(s.id)} 
+                             className={cn(
+                               "w-full text-left p-4 rounded-3xl transition-all flex flex-col gap-2 border group-hover:scale-[1.02] active:scale-[0.98]",
+                               sessionId === s.id 
+                                 ? "bg-white/10 border-white/10 shadow-[0_10px_30px_rgba(0,0,0,0.4)]" 
+                                 : "bg-transparent border-transparent hover:bg-white/[0.04] hover:border-white/5"
+                             )}
+                           >
+                             <div className="flex items-center justify-between gap-2">
+                                <span className={cn(
+                                  "truncate text-[13px] font-black tracking-tight flex-1",
+                                  sessionId === s.id ? "text-white" : "text-zinc-400 group-hover:text-zinc-200"
+                                )}>
+                                  {s.title || "Untitled Chat"}
+                                </span>
+                                <span className="text-[9px] font-medium text-zinc-600 shrink-0 uppercase tracking-tighter group-hover:opacity-0 transition-opacity duration-200">
+                                  {formatTimeAgo(s.updatedAt || s.createdAt)}
+                                </span>
+                             </div>
+                             
+                             <p className={cn(
+                               "text-[10px] font-medium line-clamp-1 leading-relaxed transition-colors",
+                               sessionId === s.id ? "text-zinc-400" : "text-zinc-600 group-hover:text-zinc-500"
+                             )}>
+                               {s.lastMessage || "No messages yet"}
+                             </p>
+
+                             {/* Active Glow Indicator */}
+                             {sessionId === s.id && (
+                                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-accent-purple rounded-r-full shadow-[0_0_15px_rgba(168,85,247,0.8)]" />
+                             )}
+                           </button>
+                           
+                           <button 
+                             onClick={(e) => { e.stopPropagation(); openDeleteModal(s.id); }} 
+                             className="absolute right-6 top-6 p-2 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500/10 rounded-xl"
+                           >
+                             <Trash2 size={14} />
+                           </button>
+                         </div>
+                       ))
+                    )}
                   </div>
 
                   {/* Clean User Info at bottom */}
@@ -516,14 +601,21 @@ export function AiChatTool() {
                            </div>
                            
                            <div className="flex-1 min-w-0 pr-1">
-                              <div className="flex items-center gap-2">
-                                 <p className="text-sm font-black text-white truncate tracking-tight leading-none italic">
-                                    {isPro ? <GradientText>{session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || "Explorer"}</GradientText> : (session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || "Explorer")}
-                                 </p>
+                              <div className="flex items-center">
+                                 <GradientText className="text-sm font-black text-white truncate tracking-tight leading-none">
+                                    {session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || "Explorer"}
+                                 </GradientText>
                               </div>
-                              <p className="text-[10px] font-bold text-zinc-500 truncate leading-none mt-1.5 tracking-wide group-hover:text-zinc-400 transition-colors">
-                                 {session?.user?.email || "explorer@lumora.ai"}
-                              </p>
+                              <div className="flex items-center mt-1.5">
+                                 {isPro ? (
+                                   <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.1)]">
+                                      <Crown size={8} className="text-purple-400 shrink-0" />
+                                      <span className="text-[7px] font-black uppercase tracking-[0.15em] text-purple-400 whitespace-nowrap">Lumora Elite</span>
+                                   </div>
+                                 ) : (
+                                   <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-widest group-hover:text-zinc-400 transition-colors">Free Explorer</span>
+                                 )}
+                              </div>
                            </div>
 
                            <Link 
@@ -579,11 +671,10 @@ export function AiChatTool() {
                   <div className="flex-1 flex flex-col items-center justify-center pb-32 text-center">
                      <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.5 }} className="space-y-8 mb-16">
                         <LumoraLogo size={80} className="mx-auto" />
-                        <div className="space-y-4 mt-8">
-                          <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter">
-                             Your Creative Gateway to <br className="hidden md:block" />
-                             <span className="text-transparent bg-clip-text bg-[linear-gradient(to_right,#a855f7,#22d3ee,#ec4899,#a855f7)] bg-[length:300%_auto] animate-gradient">Unlimited Creativity.</span>
-                          </h2>
+                        <div className="space-y-4 mt-8 flex flex-col items-center">
+                          <GradientHeading size="2xl" className="text-center">
+                            Unlimited <br className="hidden md:block" /> Creativity.
+                          </GradientHeading>
                           <p className="text-zinc-500 text-lg font-medium max-w-xl mx-auto drop-shadow-md">Define the Future. What shall we build today?</p>
                         </div>
                      </motion.div>
@@ -627,38 +718,66 @@ export function AiChatTool() {
                   </div>
                 ) : (
                   // --- Clean, Spacious Message Area ---
-                  <div className="space-y-10 pb-40">
+                  <div className="space-y-14 pb-40">
                     {messages.map((msg, i) => (
-                      <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className={cn("flex gap-4 md:gap-6 w-full", msg.role === 'user' ? "flex-row-reverse" : "flex-row")}>
-                        {/* Modern Message Bubbles: AI on left with glowing L icon, User on right */}
-                        {msg.role === 'assistant' ? (
-                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-purple-500 to-cyan-500 p-[1.5px] shadow-[0_0_30px_rgba(168,85,247,0.4)] shrink-0 mt-1 relative group">
-                             <div className="w-full h-full rounded-[14px] bg-[#0a0a0a] flex items-center justify-center text-white font-black text-sm relative z-10">L</div>
-                             <div className="absolute inset-0 bg-purple-500/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity animate-pulse" />
-                          </div>
-                        ) : (
-                          <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/10 flex items-center justify-center shrink-0 mt-1 overflow-hidden shadow-xl">
-                             {session?.user?.user_metadata?.avatar_url ? (
-                                <img src={session.user.user_metadata.avatar_url} alt="User" className="w-full h-full object-cover" />
-                             ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-accent-purple to-accent-cyan flex items-center justify-center">
-                                  <span className="text-lg font-black text-white">
-                                     {(session?.user?.user_metadata?.full_name || session?.user?.email || "U")[0].toUpperCase()}
-                                  </span>
-                                </div>
-                             )}
-                          </div>
-                        )}
+                      <motion.div 
+                        key={i} 
+                        initial={{ opacity: 0, y: 30, scale: 0.98 }} 
+                        animate={{ opacity: 1, y: 0, scale: 1 }} 
+                        transition={{ duration: 0.5, ease: [0.19, 1, 0.22, 1], delay: 0.05 }}
+                        className={cn("flex gap-6 w-full group/message", msg.role === 'user' ? "flex-row-reverse" : "flex-row")}
+                      >
+                        {/* Avatar / Icon Terminal */}
+                        <div className="flex flex-col items-center gap-2 mt-1">
+                          {msg.role === 'assistant' ? (
+                            <div className="relative shrink-0">
+                               <div className="w-12 h-12 rounded-2xl bg-[#0c0c0e] border border-white/10 flex items-center justify-center shadow-2xl relative z-10 group-hover/message:border-accent-purple/50 transition-colors">
+                                  <span className="text-white font-black text-sm">L</span>
+                               </div>
+                               <div className="absolute -inset-2 bg-accent-purple/20 blur-xl opacity-0 group-hover/message:opacity-100 transition-opacity" />
+                            </div>
+                          ) : (
+                            <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/5 overflow-hidden shadow-xl shrink-0">
+                               {session?.user?.user_metadata?.avatar_url ? (
+                                  <img src={session.user.user_metadata.avatar_url} alt="User" className="w-full h-full object-cover" />
+                               ) : (
+                                  <div className="w-full h-full bg-linear-to-br from-zinc-800 to-zinc-950 flex items-center justify-center">
+                                    <User size={20} className="text-zinc-600" />
+                                  </div>
+                               )}
+                            </div>
+                          )}
+                        </div>
                         
-                        <div className={cn("flex flex-col space-y-2 max-w-[90%] md:max-w-[85%]", msg.role === 'user' ? "items-end" : "items-start")}>
+                        {/* Message Content Bubble */}
+                        <div className={cn(
+                          "flex flex-col space-y-3 max-w-[85%] md:max-w-[75%]", 
+                          msg.role === 'user' ? "items-end" : "items-start"
+                        )}>
                           <div className={cn(
-                            "px-7 py-6 rounded-[2rem] text-[16px] leading-[1.8] relative shadow-2xl w-full overflow-hidden",
+                            "relative px-8 py-7 shadow-[0_20px_50px_-10px_rgba(0,0,0,0.5)] transition-all duration-500",
                             msg.role === 'user' 
-                              ? "bg-gradient-to-br from-purple-600 to-cyan-600 text-white rounded-tr-sm border border-white/10" 
-                              : "bg-[#0c0c0e] border border-white/10 text-zinc-200 rounded-tl-sm backdrop-blur-3xl"
+                              ? "bg-linear-to-br from-accent-purple to-accent-cyan text-white rounded-[2.5rem] rounded-tr-lg border border-white/10" 
+                              : "bg-[#0c0c0e]/80 backdrop-blur-3xl border border-white/5 text-zinc-100 rounded-[2.5rem] rounded-tl-lg hover:border-white/10 hover:shadow-accent-purple/5"
                           )}>
-                             <div className="absolute inset-0 bg-gradient-to-br from-white/[0.02] to-transparent pointer-events-none rounded-[2rem]" />
-                             {renderMessageContent(msg.content)}
+                             {/* Ambient Inner Highlight */}
+                             <div className="absolute inset-0 bg-linear-to-b from-white/[0.05] to-transparent pointer-events-none" />
+                             
+                             <div className="relative z-10 text-[17px] leading-[1.8] font-medium tracking-tight whitespace-pre-wrap">
+                                {renderMessageContent(msg.content)}
+                             </div>
+
+                             {/* Interaction Toolbar (AI Only) */}
+                             {msg.role === 'assistant' && (
+                               <div className="absolute -bottom-10 left-4 opacity-0 group-hover/message:opacity-100 transition-opacity flex items-center gap-3">
+                                  <button onClick={() => { navigator.clipboard.writeText(msg.content); toast.success("Copied to clipboard"); }} className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-500 hover:text-white transition-all">
+                                    <Copy size={12} />
+                                  </button>
+                                  <button className="p-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-500 hover:text-white transition-all">
+                                    <RefreshCw size={12} />
+                                  </button>
+                               </div>
+                             )}
                           </div>
                         </div>
                       </motion.div>
@@ -722,19 +841,31 @@ export function AiChatTool() {
                               <div className="px-1.5 py-0.5 rounded-md bg-white/5 border border-white/5 text-[8px] font-bold text-zinc-600">ESC</div>
                             </div>
                             <div className="flex flex-col gap-1 relative z-10">
-                              {SLASH_COMMANDS.map((cmd) => (
+                              {SLASH_COMMANDS.map((cmd, idx) => (
                                 <button 
                                   key={cmd.id}
                                   onClick={() => executeCommand(cmd.id)}
-                                  className="flex items-center gap-3 w-full text-left p-3 rounded-xl hover:bg-white/5 transition-all group/cmd active:scale-95 border border-transparent hover:border-white/5"
+                                  onMouseEnter={() => setSelectedCommandIndex(idx)}
+                                  className={cn(
+                                    "flex items-center gap-3 w-full text-left p-3 rounded-xl transition-all group/cmd active:scale-95 border border-transparent",
+                                    selectedCommandIndex === idx ? "bg-white/10 border-white/10" : "hover:bg-white/5"
+                                  )}
                                 >
-                                   <div className="w-10 h-10 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center shrink-0 group-hover/cmd:scale-110 group-hover/cmd:border-purple-500/50 group-hover/cmd:shadow-[0_0_10px_rgba(168,85,247,0.2)] transition-all">
-                                     {cmd.icon}
-                                   </div>
-                                   <div className="flex flex-col">
-                                     <span className="text-sm font-black text-white group-hover/cmd:text-purple-400 transition-colors">{cmd.label}</span>
-                                     <span className="text-[10px] font-medium text-zinc-500 group-hover/cmd:text-zinc-400">{cmd.desc}</span>
-                                   </div>
+                                    <div className={cn(
+                                      "w-10 h-10 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center shrink-0 transition-all",
+                                      selectedCommandIndex === idx && "scale-110 border-purple-500/50 shadow-[0_0_10px_rgba(168,85,247,0.2)]"
+                                    )}>
+                                      {cmd.icon}
+                                    </div>
+                                    <div className="flex flex-col">
+                                      <span className={cn("text-sm font-black transition-colors", selectedCommandIndex === idx ? "text-purple-400" : "text-white")}>{cmd.label}</span>
+                                      <span className="text-[10px] font-medium text-zinc-500 group-hover/cmd:text-zinc-400">{cmd.desc}</span>
+                                    </div>
+                                    {selectedCommandIndex === idx && (
+                                       <div className="ml-auto">
+                                          <ArrowUp className="rotate-90 text-purple-500/40" size={14} />
+                                       </div>
+                                    )}
                                 </button>
                               ))}
                             </div>
@@ -763,8 +894,23 @@ export function AiChatTool() {
                              target.style.height = `${Math.min(target.scrollHeight, 300)}px`;
                            }}
                            onKeyDown={(e) => { 
-                              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } 
-                              if (e.key === 'Escape') setShowCommands(false);
+                              if (showCommands) {
+                                if (e.key === 'ArrowDown') {
+                                  e.preventDefault();
+                                  setSelectedCommandIndex(prev => (prev + 1) % SLASH_COMMANDS.length);
+                                } else if (e.key === 'ArrowUp') {
+                                  e.preventDefault();
+                                  setSelectedCommandIndex(prev => (prev - 1 + SLASH_COMMANDS.length) % SLASH_COMMANDS.length);
+                                } else if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  executeCommand(SLASH_COMMANDS[selectedCommandIndex].id);
+                                } else if (e.key === 'Escape') {
+                                  setShowCommands(false);
+                                }
+                              } else {
+                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } 
+                                if (e.key === 'Escape') setShowCommands(false);
+                              }
                            }} 
                            placeholder="Ask anything... or press '/' for commands" 
                            className="w-full bg-transparent border-0 ring-0 outline-none focus:ring-0 focus:outline-none focus:border-transparent text-[16px] text-white placeholder-zinc-600 py-3.5 px-1 min-h-[48px] max-h-[300px] resize-none overflow-y-auto no-scrollbar font-medium relative z-10 leading-snug"
@@ -832,7 +978,6 @@ export function AiChatTool() {
               exit={{ opacity: 0, scale: 0.9, y: 20 }} 
               className="relative w-full max-w-md bg-[#0c0c0e] border border-white/10 rounded-[2.5rem] p-10 shadow-[0_50px_100px_rgba(0,0,0,1)] overflow-hidden"
             >
-              {/* Subtle Glow Background */}
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-red-500/10 blur-[60px] rounded-full pointer-events-none" />
               
               <div className="relative z-10 text-center space-y-8">
@@ -859,6 +1004,61 @@ export function AiChatTool() {
                      className="px-8 py-5 rounded-2xl bg-red-500 text-white font-black text-[10px] uppercase tracking-widest shadow-[0_15px_40px_-10px_rgba(239,68,68,0.5)] hover:bg-red-400 transition-all active:scale-95"
                    >
                      Confirm Delete
+                   </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      
+      {/* --- Clear Chat Confirmation Modal --- */}
+      <AnimatePresence>
+        {showClearConfirm && (
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }} 
+              onClick={() => setShowClearConfirm(false)}
+              className="absolute inset-0 bg-black/80 backdrop-blur-md" 
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.9, y: 20 }} 
+              className="relative w-full max-w-md bg-[#0c0c0e] border border-white/10 rounded-[2.5rem] p-10 shadow-[0_50px_100px_rgba(0,0,0,1)] overflow-hidden"
+            >
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-40 h-40 bg-red-500/10 blur-[60px] rounded-full pointer-events-none" />
+              
+              <div className="relative z-10 text-center space-y-8">
+                <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto text-red-500 shadow-2xl">
+                   <RefreshCw size={32} />
+                </div>
+                
+                <div className="space-y-3">
+                   <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter">Clear Chat?</h3>
+                   <p className="text-zinc-500 font-medium leading-relaxed">
+                     This will remove all messages from the current view. This action <span className="text-red-400 font-bold italic">cannot be undone</span>.
+                   </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                   <button 
+                     onClick={() => setShowClearConfirm(false)}
+                     className="px-8 py-5 rounded-2xl bg-white/5 border border-white/5 text-zinc-400 font-black text-[10px] uppercase tracking-widest hover:bg-white/10 hover:text-white transition-all active:scale-95"
+                   >
+                     Cancel
+                   </button>
+                   <button 
+                     onClick={() => {
+                        setMessages([]);
+                        setShowClearConfirm(false);
+                        toast("Chat cleared successfully", "success");
+                     }}
+                     className="px-8 py-5 rounded-2xl bg-red-500 text-white font-black text-[10px] uppercase tracking-widest shadow-[0_15px_40px_-10px_rgba(239,68,68,0.5)] hover:bg-red-400 transition-all active:scale-95"
+                   >
+                     Confirm Clear
                    </button>
                 </div>
               </div>

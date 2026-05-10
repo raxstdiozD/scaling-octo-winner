@@ -5,3 +5,5 @@ demucs
 torch
 imageio-ffmpeg
 numpy
+rembg
+onnxruntime

@@ -7,12 +7,13 @@ export interface ToolOptions {
   allowedTypes: string[];
   maxSize: number; // in bytes
   creditCost: number;
+  optionalFile?: boolean;
 }
 
 export async function withToolHandler(
   req: NextRequest, 
   options: ToolOptions,
-  processor: (file: Buffer, jobId: string) => Promise<{ resultUrl: string, metadata?: any }>
+  processor: (file: Buffer, jobId: string, formData: FormData) => Promise<{ resultUrl: string, metadata?: any }>
 ) {
   try {
     const supabase = await createClient();
@@ -38,9 +39,11 @@ export async function withToolHandler(
         });
     }
 
+    /*
     if (user.credits < options.creditCost) {
       return NextResponse.json({ error: "Insufficient credits" }, { status: 403 });
     }
+    */
     
     // We'll use the prisma user object for the rest of the logic
     const session = { user }; // Mock session for compatibility
@@ -49,17 +52,19 @@ export async function withToolHandler(
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
-    if (!file) {
+    if (!file && !options.optionalFile) {
       return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
     }
 
-    // 3. Validate File
-    if (!options.allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: `Invalid file type. Allowed: ${options.allowedTypes.join(", ")}` }, { status: 400 });
-    }
+    // 3. Validate File (if present)
+    if (file) {
+      if (!options.allowedTypes.includes(file.type)) {
+        return NextResponse.json({ error: `Invalid file type. Allowed: ${options.allowedTypes.join(", ")}` }, { status: 400 });
+      }
 
-    if (file.size > options.maxSize) {
-      return NextResponse.json({ error: `File too large. Max: ${options.maxSize / 1024 / 1024}MB` }, { status: 400 });
+      if (file.size > options.maxSize) {
+        return NextResponse.json({ error: `File too large. Max: ${options.maxSize / 1024 / 1024}MB` }, { status: 400 });
+      }
     }
 
     // 4. Create Job in DB
@@ -72,12 +77,15 @@ export async function withToolHandler(
       }
     });
 
-    // 5. Process File (Buffer conversion)
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    // 5. Process File (Buffer conversion if file exists)
+    let buffer = Buffer.alloc(0);
+    if (file) {
+      const arrayBuffer = await file.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+    }
 
     // Call actual AI/Tool logic
-    const result = await processor(buffer, job.id);
+    const result = await processor(buffer, job.id, formData);
 
     // 6. Update Job & Deduct Credits
     await prisma.$transaction([

@@ -3,6 +3,8 @@ import { createClient } from "@/utils/supabase/server";
 import { TOOLS } from "@/data/tools";
 import { ToolCard } from "@/components/ui/ToolCard";
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { FavoritesMigration } from "@/components/ui/FavoritesMigration";
 
 export default async function FavoritesPage() {
   const supabase = await createClient();
@@ -24,17 +26,18 @@ export default async function FavoritesPage() {
     );
   }
 
-  // Fetch favorites
-  const { data: favoritesData } = await supabase
-    .from('Favorite')
-    .select('toolId')
-    .eq('userId', session.user.id);
+  // Fetch favorites from Prisma
+  const favoritesData = await prisma.favorite.findMany({
+    where: { userId: session.user.id },
+    select: { toolId: true }
+  });
 
-  const favoritedIds = favoritesData?.map(f => f.toolId) || [];
+  const favoritedIds = favoritesData.map(f => f.toolId);
   const favoritedTools = TOOLS.filter(tool => favoritedIds.includes(tool.id));
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-12 pb-32">
+      <FavoritesMigration />
       {/* Header Section */}
       <div className="relative space-y-4">
         <div className="absolute -top-20 -left-20 w-64 h-64 bg-accent-purple/10 blur-[100px] rounded-full -z-10" />

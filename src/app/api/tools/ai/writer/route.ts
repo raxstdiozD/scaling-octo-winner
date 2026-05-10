@@ -1,15 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { createClient } from "@/utils/supabase/server";
 
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createClient();
+    const { data: { user: sbUser } } = await supabase.auth.getUser();
+
+    if (!sbUser || !sbUser.email) {
+      return NextResponse.json({ error: "Please sign in to use AI Writer" }, { status: 401 });
+    }
+
     const { prompt, tone, length } = await req.json();
 
     if (!prompt) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    const GROQ_API_KEY = process.env.GROQ_API_KEY;
+    // 1. Credit Check (Pre-flight)
+    const { data: creditData } = await supabase
+      .from('User')
+      .select('daily_credits, lifetime_credits, plan')
+      .eq('id', sbUser.id)
+      .single();
 
+    const dailyCredits = creditData?.daily_credits ?? 0;
+    const lifetimeCredits = creditData?.lifetime_credits ?? 0;
+    const totalCreditsAvailable = dailyCredits + lifetimeCredits;
+    const cost = 5;
+
+    if (totalCreditsAvailable < cost) {
+      return NextResponse.json({ error: "Insufficient credits. AI Writer costs 5 credits." }, { status: 403 });
+    }
+
+    const GROQ_API_KEY = process.env.GROQ_API_KEY;
     if (!GROQ_API_KEY) {
       return NextResponse.json({ error: "Groq API Key not found in environment." }, { status: 500 });
     }
@@ -29,7 +53,7 @@ export async function POST(req: NextRequest) {
         "Authorization": `Bearer ${GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile", // Upgraded to the latest Llama 3.3 model
+        model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
@@ -50,6 +74,32 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
     const content = data.choices[0]?.message?.content;
 
+    // 2. Deduct Credits only on SUCCESS
+    let newLifetime = lifetimeCredits;
+    let newDaily = dailyCredits;
+
+    if (newLifetime >= cost) {
+      newLifetime -= cost;
+    } else {
+      const remaining = cost - newLifetime;
+      newLifetime = 0;
+      newDaily = Math.max(0, newDaily - remaining);
+    }
+
+    await Promise.all([
+      prisma.user.update({
+        where: { email: sbUser.email },
+        data: { credits: { decrement: cost } }
+      }),
+      supabase
+        .from('User')
+        .update({ 
+          lifetime_credits: newLifetime,
+          daily_credits: newDaily 
+        })
+        .eq('id', sbUser.id)
+    ]);
+
     return NextResponse.json({ content });
 
   } catch (error: any) {
@@ -57,3 +107,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || "An error occurred during generation." }, { status: 500 });
   }
 }
+

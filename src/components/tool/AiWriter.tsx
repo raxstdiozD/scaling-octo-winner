@@ -57,9 +57,9 @@ export default function AiWriter() {
   const handleGenerate = async () => {
     if (!prompt.trim() || isGenerating) return;
 
-    // Credit Check
-    const hasCredits = await deductCredits(5); // AI Writer is a Pro tool, costs 5 credits
-    if (!hasCredits) {
+    // Credit Check (Pre-flight)
+    const cost = 5;
+    if (credits < cost) {
       setShowUpsell(true);
       return;
     }

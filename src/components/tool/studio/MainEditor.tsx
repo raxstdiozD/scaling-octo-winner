@@ -122,7 +122,7 @@ export function MainEditor() {
               <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Live Preview Active</span>
            </div>
            <div className="flex-1 max-w-xl bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-[10px] text-zinc-500 font-mono truncate">
-              http://localhost:3000/preview
+              https://lumoraai.online/preview
            </div>
         </div>
         <iframe src="about:blank" className="flex-1 w-full border-none bg-white" title="Studio Preview" />

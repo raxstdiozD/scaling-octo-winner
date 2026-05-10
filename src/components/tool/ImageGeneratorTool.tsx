@@ -69,8 +69,20 @@ export function ImageGeneratorTool() {
     }
 
     const cost = 10;
-    const hasCredits = await deductCredits(cost);
-    if (!hasCredits) return;
+    if (credits < cost) {
+      setError(
+        <div className="flex flex-col gap-3">
+          <p>Insufficient credits. You need {cost} credits but only have {credits}.</p>
+          <button 
+            onClick={() => window.location.href = '/pricing'}
+            className="w-fit px-4 py-2 rounded-lg bg-white text-black text-[10px] font-black uppercase tracking-widest hover:bg-zinc-200 transition-all"
+          >
+            Upgrade Now
+          </button>
+        </div>
+      );
+      return;
+    }
 
     setIsGenerating(true);
     setError(null);
@@ -115,8 +127,17 @@ export function ImageGeneratorTool() {
 
   const handleVariations = () => {
     if (results.length === 0) return;
-    const currentPrompt = watch("prompt");
-    setValue("prompt", `${currentPrompt}, highly detailed variation, alternative angle, cinematic lighting`);
+    
+    // Get base prompt (remove any existing variation suffix to prevent stacking)
+    let currentPrompt = watch("prompt");
+    const variationSuffix = ", highly detailed variation, alternative angle, cinematic lighting";
+    
+    // Simple check: if it already ends with the suffix, don't add it again, just re-run
+    if (!currentPrompt.includes("variation")) {
+      currentPrompt = `${currentPrompt}${variationSuffix}`;
+      setValue("prompt", currentPrompt);
+    }
+    
     handleSubmit(onSubmit)();
   };
 

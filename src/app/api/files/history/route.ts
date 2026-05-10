@@ -1,29 +1,31 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
-import { prisma } from "@/lib/prisma";
+import { createAdminClient } from "@/utils/supabase/admin";
 
-// GET recent history
 export async function GET(req: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const supabaseServer = await createClient();
+    const { data: { user } } = await supabaseServer.auth.getUser();
 
     if (!user) {
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const limit = parseInt(searchParams.get("limit") || "20");
 
-    const history = await prisma.userFile.findMany({
-      where: {
-        userId: user.id,
-      },
-      orderBy: {
-        lastAccessed: "desc",
-      },
-      take: limit,
-    });
+    const supabaseAdmin = createAdminClient();
+    const { data: history, error } = await supabaseAdmin
+      .from('UserFile')
+      .select('*')
+      .eq('userId', user.id)
+      .order('createdAt', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error("[HISTORY_GET] Supabase Error:", error);
+      return NextResponse.json([]);
+    }
 
     return NextResponse.json(history);
   } catch (error) {
@@ -32,46 +34,46 @@ export async function GET(req: Request) {
   }
 }
 
-// POST new history item
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const supabaseServer = await createClient();
+    const { data: { user } } = await supabaseServer.auth.getUser();
 
     if (!user) {
-      return new NextResponse("Unauthorized", { status: 401 });
+      return new NextResponse(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
     }
 
     const body = await req.json();
-    const { fileName, filePath, fileType, content } = body;
+    const { toolType, originalName, originalUrl, resultUrl, fileType, status, metadata } = body;
 
-    if (!fileName || !filePath) {
-      return new NextResponse("Missing fields", { status: 400 });
+    if (!originalName || !toolType) {
+      return new NextResponse(JSON.stringify({ error: "Missing fields" }), { status: 400 });
     }
 
-    const historyItem = await prisma.userFile.upsert({
-      where: {
-        userId_filePath: {
-          userId: user.id,
-          filePath: filePath,
-        },
-      },
-      update: {
-        lastAccessed: new Date(),
-        content: content,
-      },
-      create: {
+    const supabaseAdmin = createAdminClient();
+    const { data: historyItem, error } = await supabaseAdmin
+      .from('UserFile')
+      .insert({
         userId: user.id,
-        fileName,
-        filePath,
+        toolType,
+        originalName,
+        originalUrl,
+        resultUrl,
         fileType,
-        content,
-      },
-    });
+        status,
+        metadata: metadata || {},
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[HISTORY_POST] Supabase Error:", error);
+      throw error;
+    }
 
     return NextResponse.json(historyItem);
-  } catch (error) {
+  } catch (error: any) {
     console.error("[HISTORY_POST]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    return new NextResponse(JSON.stringify({ error: error.message || "Internal Error" }), { status: 500 });
   }
 }

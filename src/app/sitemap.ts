@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next';
 import { TOOLS, CATEGORIES } from '@/data/tools';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://lumoraai.online';
+  const baseUrl = 'https://lumoraai.online';
 
   // 1. Core Pages (Highest Priority)
   const staticPages = [

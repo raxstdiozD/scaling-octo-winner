@@ -53,7 +53,11 @@ export function constructMetadata({
       images: [image],
       creator: "@lumoraai",
     },
-    icons,
+    icons: {
+      icon: "/favicon.png",
+      shortcut: "/favicon.png",
+      apple: "/favicon.png",
+    },
     metadataBase: new URL(baseUrl),
     alternates: {
       canonical: canonicalUrl,

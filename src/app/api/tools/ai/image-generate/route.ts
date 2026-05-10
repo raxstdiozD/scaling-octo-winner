@@ -203,17 +203,6 @@ export async function POST(req: NextRequest) {
     }
 
     const supabaseAdmin = createAdminClient();
-    
-    let newLifetime = lifetimeCredits;
-    let newDaily = dailyCredits;
-
-    if (newLifetime >= totalCost) {
-      newLifetime -= totalCost;
-    } else {
-      const remaining = totalCost - newLifetime;
-      newLifetime = 0;
-      newDaily = Math.max(0, newDaily - remaining);
-    }
 
     const { error: sbFileError } = await supabaseAdmin
       .from('UserFile')

@@ -124,13 +124,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    throw new Error('All separation services (Primary, Tier 1, and Tier 2) are currently unresponsive.');
+    throw new Error('All services failed. Check Vercel logs for Tier 1/2 details.');
 
   } catch (error: any) {
     console.error('Vocal separation error:', error);
+    
+    // Determine the most helpful error message
+    let userMessage = 'The AI service is currently unavailable.';
+    if (error.message.includes('HUGGINGFACE_TOKEN')) userMessage = 'System Error: AI Token Missing.';
+    if (error.message.includes('fetch failed')) userMessage = 'Connection Error: AI Engine Unreachable.';
+    if (error.message.includes('timeout')) userMessage = 'The AI is taking too long. Try a shorter clip.';
+
     return NextResponse.json({ 
-      error: 'The AI is currently overwhelmed. Please try a shorter clip or wait a moment.',
-      details: error.message 
+      error: userMessage,
+      details: error.message,
+      debug_info: {
+        engine_url: process.env.NEXT_PUBLIC_ENGINE_URL ? 'Configured' : 'Missing (Defaulting to localhost)',
+        hf_token: process.env.HUGGINGFACE_TOKEN ? 'Present' : 'Missing'
+      }
     }, { status: 500 });
   }
 }

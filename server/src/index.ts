@@ -24,8 +24,9 @@ app.get('/health', (req, res) => {
 app.use('/', audioRoutes);
 app.use('/', imageRoutes);
 
-app.listen(PORT, () => {
-  console.log(`🚀 Lumora Backend Engine running on port ${PORT}`);
+app.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`🚀 Lumora Backend Engine is LIVE on port ${PORT}`);
+  console.log(`🔗 Health check available at: http://0.0.0.0:${PORT}/health`);
 });
 
 export { prisma };

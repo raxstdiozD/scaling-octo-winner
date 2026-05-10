@@ -24,40 +24,56 @@ router.post('/separate', upload.single('file'), async (req, res) => {
 
     console.log(`[AudioEngine] Processing vocal separation for: ${file.originalname}`);
 
-    // Convert to base64 for HF Space
+    // List of reliable AI separation spaces to try in order
+    const hfSpaces = [
+      "https://r3gm-audio-separator.hf.space/api/predict",
+      "https://akhaliq-demucs.hf.space/api/predict",
+      "https://mrfakename-uvr-audio-separator.hf.space/api/predict"
+    ];
+
+    let lastError = null;
     const base64Audio = file.buffer.toString('base64');
-    const hfSpaceUrl = "https://r3gm-audio-separator.hf.space/api/predict";
 
-    const hfResponse = await axios.post(hfSpaceUrl, {
-      data: [
-        { name: file.originalname, data: `data:${file.mimetype};base64,${base64Audio}` },
-        "UVR-MDX-NET-Voc_FT", // Model
-        "Vocals", // Stem
-        "v3" // Version
-      ]
-    }, {
-      headers: {
-        "Authorization": `Bearer ${hfToken}`,
-        "Content-Type": "application/json"
-      },
-      timeout: 60000 // 60s timeout for heavy processing
-    });
+    for (const hfSpaceUrl of hfSpaces) {
+      try {
+        console.log(`[AudioEngine] Trying AI Space: ${hfSpaceUrl}`);
+        const hfResponse = await axios.post(hfSpaceUrl, {
+          data: [
+            { name: file.originalname, data: `data:${file.mimetype};base64,${base64Audio}` },
+            "UVR-MDX-NET-Voc_FT", // Model
+            "Vocals", // Stem
+            "v3" // Version
+          ]
+        }, {
+          headers: {
+            "Authorization": `Bearer ${hfToken}`,
+            "Content-Type": "application/json"
+          },
+          timeout: 120000 // 120s timeout
+        });
 
-    if (hfResponse.data && hfResponse.data.data) {
-      const resultData = hfResponse.data.data[0];
-      const resultUrl = typeof resultData === 'string' ? resultData : resultData.url;
+        if (hfResponse.data && hfResponse.data.data) {
+          const resultData = hfResponse.data.data[0];
+          const resultUrl = typeof resultData === 'string' ? resultData : resultData.url;
 
-      return res.json({
-        success: true,
-        result: {
-          vocals: resultUrl,
-          instrumental: resultUrl,
-          fileName: file.originalname
+          console.log(`[AudioEngine] Success with ${hfSpaceUrl}`);
+          return res.json({
+            success: true,
+            result: {
+              vocals: resultUrl,
+              instrumental: resultUrl,
+              fileName: file.originalname
+            }
+          });
         }
-      });
+      } catch (error: any) {
+        console.warn(`[AudioEngine] ${hfSpaceUrl} failed:`, error.message);
+        lastError = error;
+        continue; // Try next space
+      }
     }
 
-    throw new Error('Invalid response from AI Space');
+    throw lastError || new Error('All AI Spaces failed');
 
   } catch (error: any) {
     console.error('[AudioEngine] Error:', error.message);

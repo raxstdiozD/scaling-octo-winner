@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getEngineRoute } from '@/config/engine';
 
 /**
  * Stem Splitter API Route
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
     formData.append('stems', '4');
 
     // 1. Local AI Microservice
-    const localApiUrl = "http://localhost:8000/separate?stems=4";
+    const localApiUrl = getEngineRoute("/separate?stems=4");
     
     try {
       console.log('Attempting local stem splitting...');

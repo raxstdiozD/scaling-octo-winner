@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getEngineRoute } from '@/config/engine';
 
 /**
  * AI Noise Remover API Route
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Try Local AI Microservice
-    const localApiUrl = "http://localhost:8000/api/noise-remover";
+    const localApiUrl = getEngineRoute("/api/noise-remover");
     
     try {
       console.log('Attempting local noise removal at:', localApiUrl);

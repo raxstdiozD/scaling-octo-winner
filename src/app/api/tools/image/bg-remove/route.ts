@@ -3,6 +3,7 @@ import { withToolHandler } from "@/lib/tools-handler";
 import axios from "axios";
 import { writeFile } from "fs/promises";
 import path from "path";
+import { getEngineRoute } from "@/config/engine";
 
 // Practical local storage for results (Phase 2)
 const STORAGE_PATH = path.join(process.cwd(), "public", "results");
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
       const blob = new Blob([buffer]);
       formData.append("file", blob, "input.png");
 
-      const response = await axios.post("http://localhost:8000/image/remove-bg", formData, {
+      const response = await axios.post(getEngineRoute("/image/remove-bg"), formData, {
         responseType: 'arraybuffer',
         timeout: 5000 // Short timeout for local service
       });

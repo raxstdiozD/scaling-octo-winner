@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getEngineRoute } from '@/config/engine';
 
 /**
  * Vocal Separator API Route
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Local AI Microservice (Highest Priority for Local Dev)
-    const localApiUrl = "http://localhost:8000/separate";
+    const localApiUrl = getEngineRoute("/separate");
     
     try {
       console.log('Attempting local separation at:', localApiUrl);

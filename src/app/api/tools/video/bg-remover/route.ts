@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getEngineRoute } from "@/config/engine";
 import { writeFile, mkdir, readdir, unlink } from "fs/promises";
 import path from "path";
 import os from "os";
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
       form.append("file", fs.createReadStream(framePath));
 
       try {
-        const response = await axios.post("http://localhost:8000/image/remove-bg", form, {
+        const response = await axios.post(getEngineRoute("/image/remove-bg"), form, {
           headers: { ...form.getHeaders() },
           responseType: "arraybuffer",
         });

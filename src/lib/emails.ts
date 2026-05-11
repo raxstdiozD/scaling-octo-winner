@@ -362,7 +362,7 @@ export async function sendAuthOTP(email: string, otp: string) {
 export async function sendWelcomeEmail(email: string) {
   try {
     await resend.emails.send({
-      from: SENDER_WELCOME,
+      from: SENDER_NOREPLY,
       to: email,
       subject: 'Welcome to Lumora! Let\'s build the future 🚀',
       html: PREMIUM_DARK_THEME(`

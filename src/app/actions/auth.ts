@@ -177,8 +177,33 @@ export async function verifyOtpAction(email: string, otp: string) {
     console.error('[Auth] Supabase Admin operation failed. Make sure SUPABASE_SERVICE_ROLE_KEY is set.');
   }
 
-  // 4. Send Welcome Email (Async)
-  sendWelcomeEmail(emailLower).catch(err => console.error('Welcome email failed:', err));
+  // 4. Initialize user in Database with credits
+  try {
+    const supabaseAdmin = createAdminClient();
+    
+    // Upsert in Prisma
+    await prisma.user.upsert({
+      where: { email: emailLower },
+      update: {},
+      create: {
+        email: emailLower,
+        dailyCredits: 50,
+        plan: 'free'
+      }
+    });
+
+    // Upsert in Supabase User table
+    await supabaseAdmin.from('User').upsert({
+      email: emailLower,
+      daily_credits: 50,
+      plan: 'free'
+    }, { onConflict: 'email' });
+
+    // 5. Send Welcome Email (Async)
+    sendWelcomeEmail(emailLower).catch(err => console.error('Welcome email failed:', err));
+  } catch (err) {
+    console.error('[Auth] Failed to initialize user credits:', err);
+  }
   
   return { success: true };
 }

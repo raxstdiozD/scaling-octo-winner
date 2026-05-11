@@ -12,6 +12,17 @@ export async function GET(request: Request) {
     const { data: { session }, error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error && session?.user?.email) {
       const { prisma } = await import('@/lib/prisma')
+      const { sendWelcomeEmail } = await import('@/lib/emails')
+      
+      const existingUser = await prisma.user.findUnique({
+        where: { email: session.user.email }
+      })
+
+      if (!existingUser) {
+        // Send Welcome Email for New Users
+        sendWelcomeEmail(session.user.email).catch(err => console.error('Welcome email failed:', err))
+      }
+
       await prisma.user.upsert({
         where: { email: session.user.email },
         update: {},
@@ -22,6 +33,15 @@ export async function GET(request: Request) {
           plan: 'free'
         }
       })
+
+      // Also ensure Supabase User table is in sync
+      const { createAdminClient } = await import('@/utils/supabase/admin')
+      const supabaseAdmin = createAdminClient()
+      await supabaseAdmin.from('User').upsert({
+        email: session.user.email,
+        daily_credits: 50,
+        plan: 'free'
+      }, { onConflict: 'email' })
       const forwardedHost = request.headers.get('x-forwarded-host') // i.e. local.vercel.live
       const isLocalEnv = process.env.NODE_ENV === 'development'
       if (isLocalEnv) {

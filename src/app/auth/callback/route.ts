@@ -18,7 +18,7 @@ export async function GET(request: Request) {
         create: {
           email: session.user.email,
           name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || null,
-          credits: 20,
+          dailyCredits: 50,
           plan: 'free'
         }
       })

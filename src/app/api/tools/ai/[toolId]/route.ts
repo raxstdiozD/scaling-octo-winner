@@ -28,7 +28,7 @@ export async function POST(
                 id: sbUser.id,
                 email: sbUser.email!,
                 name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0],
-                credits: 1000
+                dailyCredits: 50
             }
         });
     }
@@ -118,7 +118,7 @@ export async function POST(
       await Promise.all([
         prisma.user.update({
           where: { id: currentUser.id },
-          data: { credits: { decrement: cost } }
+          data: { dailyCredits: { decrement: cost } }
         }),
         supabase
           .from('User')

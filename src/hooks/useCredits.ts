@@ -30,6 +30,31 @@ export function useCredits() {
   const [loading, setLoading] = useState(true);
   const [showUpsell, setShowUpsell] = useState(false);
   const [notification, setNotification] = useState<{message: string, type: 'success' | 'info' | 'warning'} | null>(null);
+  const [countdown, setCountdown] = useState<string>("");
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      const now = new Date();
+      // IST is UTC + 5:30
+      const istOffset = 5.5 * 60 * 60 * 1000;
+      const nowIST = new Date(now.getTime() + istOffset);
+      
+      const nextResetIST = new Date(nowIST);
+      nextResetIST.setUTCHours(24, 0, 0, 0); // Next day 00:00 IST
+      
+      const diff = nextResetIST.getTime() - nowIST.getTime();
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      setCountdown(`${hours}h ${minutes}m ${seconds}s`);
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const getUser = async () => {
@@ -71,8 +96,14 @@ export function useCredits() {
         };
 
         const now = new Date();
+        const istOffset = 5.5 * 60 * 60 * 1000;
+        const nowIST = new Date(now.getTime() + istOffset);
         const lastReset = new Date(userData.creditsLastReset);
-        const isNewDay = now.toDateString() !== lastReset.toDateString();
+        const lastResetIST = new Date(lastReset.getTime() + istOffset);
+        
+        const isNewDay = nowIST.getUTCDate() !== lastResetIST.getUTCDate() || 
+                        nowIST.getUTCMonth() !== lastResetIST.getUTCMonth() ||
+                        nowIST.getUTCFullYear() !== lastResetIST.getUTCFullYear();
 
         if (isNewDay) {
           const resetLimits = userData.plan === 'pro' ? PRO_LIMITS : FREE_LIMITS;
@@ -266,6 +297,7 @@ export function useCredits() {
     setShowUpsell,
     notification,
     toast: showNotification,
-    refreshCredits: fetchCredits
+    refreshCredits: fetchCredits,
+    countdown
   };
 }

@@ -25,14 +25,19 @@ model User {
   notifications Notification[]
   favorites     Favorite[]
   chatSessions  ChatSession[]
-  credits       Int       @default(20)
-  lifetimeCredits Int     @default(0)
+  dailyCredits    Int       @default(50) @map("daily_credits")
+  lifetimeCredits Int       @default(0)  @map("lifetime_credits")
   
   // Usage Tracking
   plan              String    @default("free") // "free" | "pro"
   subscriptionId    String?
-  subscriptionStatus String   @default("none") // "none" | "active" | "cancelled"
-  planExpiresAt     DateTime?
+  subscriptionStatus String   @default("none") @map("subscription_status") // "none" | "active" | "cancelled"
+  planExpiresAt     DateTime? @map("plan_expires_at")
+  
+  aiMessagesToday   Int       @default(0)  @map("ai_messages_today")
+  aiMessagesReset   DateTime? @map("ai_messages_reset")
+  creditsLastReset  DateTime? @map("credits_last_reset")
+  
   aiGenerationsUsed Int       @default(0)
   aiGenerationsLimit Int      @default(50)
   nextResetDate     DateTime?

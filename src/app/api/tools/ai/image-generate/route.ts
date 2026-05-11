@@ -31,23 +31,31 @@ export async function POST(req: NextRequest) {
             email: sbUser.email!,
             name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0],
             plan: "free",
-            credits: 50,
+            dailyCredits: 50,
             aiGenerationsLimit: 5,
             nextResetDate: new Date(new Date().getTime() + 24 * 60 * 60 * 1000)
         }
       })
     }
 
-    // 2. Daily Reset Logic
-    const now = new Date();
-    if (user.nextResetDate && now > user.nextResetDate) {
+    // 2. Daily Reset Logic (IST Aligned)
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const nowIST = new Date(now.getTime() + istOffset);
+    const nextResetDateIST = user.nextResetDate ? new Date(user.nextResetDate.getTime() + istOffset) : null;
+
+    if (nextResetDateIST && nowIST > nextResetDateIST) {
       const isPro = user.plan === "pro";
+      // Get next 00:00 IST
+      const nextReset = new Date(nowIST);
+      nextReset.setUTCHours(24, 0, 0, 0);
+      const nextResetUTC = new Date(nextReset.getTime() - istOffset);
+
       user = await prisma.user.update({
         where: { id: user.id },
         data: {
-          credits: isPro ? 1000 : 50,
+          dailyCredits: isPro ? 5000 : 50,
           aiGenerationsUsed: 0,
-          nextResetDate: new Date(now.getTime() + 24 * 60 * 60 * 1000)
+          nextResetDate: nextResetUTC
         }
       });
     }

@@ -20,7 +20,7 @@ export async function POST(req: Request) {
           id: sbUser.id,
           email: sbUser.email,
           name: sbUser.name || sbUser.email.split('@')[0],
-          credits: 50,
+          dailyCredits: 50,
           plan: 'free'
         }
       });
@@ -103,7 +103,7 @@ Instructions:
       }
 
       await Promise.all([
-        prisma.user.update({ where: { id: user.id }, data: { credits: { decrement: cost } } }),
+        prisma.user.update({ where: { id: user.id }, data: { dailyCredits: { decrement: cost } } }),
         prisma.job.create({
           data: {
             userId: user.id,

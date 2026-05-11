@@ -34,7 +34,7 @@ export async function withToolHandler(
                 id: sbUser.id,
                 email: sbUser.email!,
                 name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0],
-                credits: 20
+                dailyCredits: 50
             }
         });
     }
@@ -99,7 +99,7 @@ export async function withToolHandler(
       }),
       prisma.user.update({
         where: { id: session.user.id },
-        data: { credits: { decrement: options.creditCost } }
+        data: { dailyCredits: { decrement: options.creditCost } }
       })
     ]);
 

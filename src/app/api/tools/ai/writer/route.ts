@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     await Promise.all([
       prisma.user.update({
         where: { email: sbUser.email },
-        data: { credits: { decrement: cost } }
+        data: { dailyCredits: { decrement: cost } }
       }),
       supabase
         .from('User')

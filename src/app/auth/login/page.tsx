@@ -63,6 +63,17 @@ export default function AuthPage() {
     }
   }, [success, error]);
 
+  // Auto-redirect if already logged in
+  useEffect(() => {
+    async function checkSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        window.location.href = returnUrl;
+      }
+    }
+    checkSession();
+  }, [supabase, returnUrl]);
+
   // Handle OTP input
   const handleOtpChange = (index: number, value: string) => {
     if (value.length > 1) value = value[0];

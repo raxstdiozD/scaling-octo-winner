@@ -181,23 +181,31 @@ export async function verifyOtpAction(email: string, otp: string) {
   try {
     const supabaseAdmin = createAdminClient();
     
-    // Upsert in Prisma
-    await prisma.user.upsert({
-      where: { email: emailLower },
-      update: {},
-      create: {
-        email: emailLower,
-        dailyCredits: 50,
-        plan: 'free'
-      }
-    });
+    // Get Supabase Auth user ID
+    const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers();
+    const authUser = authUsers?.users.find(u => u.email?.toLowerCase() === emailLower);
+    
+    if (authUser) {
+      // Upsert in Prisma
+      await prisma.user.upsert({
+        where: { email: emailLower },
+        update: { id: authUser.id },
+        create: {
+          id: authUser.id,
+          email: emailLower,
+          dailyCredits: 50,
+          plan: 'free'
+        }
+      });
 
-    // Upsert in Supabase User table
-    await supabaseAdmin.from('User').upsert({
-      email: emailLower,
-      daily_credits: 50,
-      plan: 'free'
-    }, { onConflict: 'email' });
+      // Upsert in Supabase User table
+      await supabaseAdmin.from('User').upsert({
+        id: authUser.id,
+        email: emailLower,
+        daily_credits: 50,
+        plan: 'free'
+      }, { onConflict: 'email' });
+    }
 
     // 5. Send Welcome Email (Async)
     sendWelcomeEmail(emailLower).catch(err => console.error('Welcome email failed:', err));

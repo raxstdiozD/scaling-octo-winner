@@ -25,8 +25,11 @@ export async function GET(request: Request) {
 
       await prisma.user.upsert({
         where: { email: session.user.email },
-        update: {},
+        update: {
+            id: session.user.id // Ensure ID is synced if email exists but ID differs
+        },
         create: {
+          id: session.user.id,
           email: session.user.email,
           name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || null,
           dailyCredits: 50,
@@ -38,6 +41,7 @@ export async function GET(request: Request) {
       const { createAdminClient } = await import('@/utils/supabase/admin')
       const supabaseAdmin = createAdminClient()
       await supabaseAdmin.from('User').upsert({
+        id: session.user.id,
         email: session.user.email,
         daily_credits: 50,
         plan: 'free'

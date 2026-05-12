@@ -11,7 +11,6 @@ import GradientText from "../ui/GradientText";
 import PremiumButton from "../ui/PremiumButton";
 import { usePro } from "@/hooks/usePro";
 import { useCredits } from "@/hooks/useCredits";
-import { useSession, signIn, signOut } from "next-auth/react";
 import { ManageSubscriptionModal } from "../tool/ManageSubscriptionModal";
 import { CreditModal } from "../ui/CreditModal";
 import { Zap } from "lucide-react";
@@ -20,7 +19,7 @@ import { VerifiedTick } from "../ui/VerifiedTick";
 export function UserMenu() {
   const { isPro, user: dbUser, isLoading: isProLoading, refresh } = usePro();
   const { credits, showUpsell, setShowUpsell, loading: isCreditsLoading } = useCredits();
-  const { data: session, status } = useSession();
+  const [session, setSession] = useState<any>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -29,14 +28,25 @@ export function UserMenu() {
   const supabase = createClient();
   const router = useRouter();
 
-  const isLoading = status === "loading" || isProLoading || isCreditsLoading;
+  const isLoading = isProLoading || isCreditsLoading;
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Removed Supabase session listener
+  useEffect(() => {
+    async function getSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+    }
+    getSession();
 
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -88,8 +98,8 @@ export function UserMenu() {
   }
 
   const user = session.user;
-  const fullName = user?.name || user?.email?.split('@')[0] || "Explorer";
-  const avatarUrl = user?.image;
+  const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || "Explorer";
+  const avatarUrl = user?.user_metadata?.avatar_url;
   
   const usageCount = dbUser?.aiGenerationsUsed ?? 0;
   const totalLimit = dbUser?.aiGenerationsLimit ?? 50;
@@ -289,7 +299,7 @@ export function UserMenu() {
 
                  <button 
                    onClick={async () => {
-                      await signOut();
+                      await supabase.auth.signOut();
                       window.location.href = "/";
                    }}
                    className="w-full flex items-center gap-3.5 px-5 py-3.5 text-[10px] font-black uppercase tracking-[0.15em] text-red-500/60 hover:text-red-500 hover:bg-red-500/10 rounded-2xl transition-all"

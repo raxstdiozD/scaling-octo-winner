@@ -2,54 +2,48 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/utils/supabase/client";
-import { useSession } from "next-auth/react";
 
 export function usePro() {
   const [isPro, setIsPro] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
-  const { data: session } = useSession();
-  const authUser = session?.user;
+  const [authUser, setAuthUser] = useState<any>(null);
   const supabase = createClient();
 
   useEffect(() => {
     async function getProStatus() {
-      if (session === undefined) return; // Wait for session to be fetched
+      const { data: { session } } = await supabase.auth.getSession();
+      setAuthUser(session?.user || null);
       
-      if (!authUser?.email) {
+      if (!session?.user?.email) {
         setIsPro(false);
         setIsLoading(false);
         return;
       }
 
-      try {
-        const response = await fetch('/api/user/me');
-        if (!response.ok) throw new Error('Failed to fetch user data');
-        
-        const result = await response.json();
-        const data = result.user;
+      const { data, error } = await supabase
+        .from('User')
+        .select('*')
+        .eq('email', session.user.email)
+        .single();
 
-        if (data) {
-          setUser(data);
-          const plan = (data.plan || data.planType || "free").toLowerCase();
-          const rawExpiry = data.plan_expires_at || data.planExpiresAt;
-          const expiresAt = rawExpiry ? new Date(rawExpiry) : null;
-          const now = new Date();
-          
-          let isUserPro = plan === "pro";
-          
-          // If plan is pro but it has an expiry date in the past, they are no longer pro
-          if (isUserPro && expiresAt && expiresAt < now) {
-            isUserPro = false;
-          }
-          
-          setIsPro(isUserPro);
+      if (data) {
+        setUser(data);
+        const plan = (data.plan || data.planType || "free").toLowerCase();
+        const rawExpiry = data.plan_expires_at || data.planExpiresAt;
+        const expiresAt = rawExpiry ? new Date(rawExpiry) : null;
+        const now = new Date();
+        
+        let isUserPro = plan === "pro";
+        
+        // If plan is pro but it has an expiry date in the past, they are no longer pro
+        if (isUserPro && expiresAt && expiresAt < now) {
+          isUserPro = false;
         }
-      } catch (err) {
-        console.error('Error fetching pro status via API:', err);
-      } finally {
-        setIsLoading(false);
+        
+        setIsPro(isUserPro);
       }
+      setIsLoading(false);
     }
 
     getProStatus();
@@ -83,37 +77,38 @@ export function usePro() {
             setIsPro(isUserPro);
           }
         }
-      ).subscribe();
+      )
+      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, session, authUser?.email]);
+  }, [supabase]);
 
   const refresh = async () => {
     setIsLoading(true);
-    try {
-      const response = await fetch('/api/user/me');
-      if (!response.ok) throw new Error('Failed to fetch user data');
-      
-      const result = await response.json();
-      const data = result.user;
-
-      if (data) {
-        setUser(data);
-        const plan = (data.plan || data.planType || "free").toLowerCase();
-        const rawExpiry = data.plan_expires_at || data.planExpiresAt;
-        const expiresAt = rawExpiry ? new Date(rawExpiry) : null;
-        const now = new Date();
-        let isUserPro = plan === "pro";
-        if (isUserPro && expiresAt && expiresAt < now) isUserPro = false;
-        setIsPro(isUserPro);
-      }
-    } catch (err) {
-      console.error('Error refreshing pro status:', err);
-    } finally {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.email) {
+      setIsPro(false);
       setIsLoading(false);
+      return;
     }
+    const { data } = await supabase
+      .from('User')
+      .select('*')
+      .eq('email', session.user.email)
+      .single();
+    if (data) {
+      setUser(data);
+      const plan = (data.plan || data.planType || "free").toLowerCase();
+      const rawExpiry = data.plan_expires_at || data.planExpiresAt;
+      const expiresAt = rawExpiry ? new Date(rawExpiry) : null;
+      const now = new Date();
+      let isUserPro = plan === "pro";
+      if (isUserPro && expiresAt && expiresAt < now) isUserPro = false;
+      setIsPro(isUserPro);
+    }
+    setIsLoading(false);
   };
 
   return { isPro, isLoading, user, authUser, refresh };

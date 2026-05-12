@@ -18,25 +18,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           password: { label: "Password", type: "password" }
         },
         async authorize(credentials) {
-          if (!credentials?.email || !credentials?.password) return null;
-
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email as string }
-          });
-
-          if (!user || !user.password) return null;
-
-          const { default: bcrypt } = await import("bcryptjs");
-          const isValid = await bcrypt.compare(credentials.password as string, user.password);
-
-          if (!isValid) return null;
-
-          return {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            image: user.image,
+          // For demo purposes, we'll allow any email/password if valid email format
+          if (credentials && typeof credentials.email === 'string' && credentials.email.includes('@')) {
+            return {
+              id: "1",
+              name: "Demo User",
+              email: credentials.email,
+              image: "https://ui-avatars.com/api/?name=Demo+User",
+            }
           }
+          return null
         }
     })
   ],
@@ -52,27 +43,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return true
     },
   },
-  events: {
-    async createUser({ user }) {
-      if (user.email) {
-        try {
-          const { prisma } = await import("@/lib/prisma");
-          // Force set daily credits to 50 for new users
-          await prisma.user.update({
-            where: { email: user.email },
-            data: {
-              dailyCredits: 50,
-              creditsLastReset: new Date(),
-            }
-          });
-          
-          const { sendWelcomeEmail } = await import("@/lib/emails");
-          await sendWelcomeEmail(user.email);
-          console.log(`User ${user.email} initialized with 50 credits and welcome email sent.`);
-        } catch (error) {
-          console.error("Failed to initialize new user:", error);
-        }
-      }
-    }
-  }
 })

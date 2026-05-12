@@ -13,6 +13,7 @@ import { UserMenu } from "@/components/layout/UserMenu";
 import { SearchBar } from "@/components/layout/SearchBar";
 import { AppLoader } from "@/components/providers/AppLoader";
 import { Suspense } from "react";
+import { createClient } from "@/utils/supabase/server";
 import { Footer } from "@/components/layout/Footer";
 import { I18nProvider } from "@/components/providers/I18nProvider";
 import { CreditBadge } from "@/components/ui/CreditBadge";
@@ -29,7 +30,8 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
@@ -56,16 +58,18 @@ export default async function RootLayout({
             <SessionProvider>
               <I18nProvider>
                 <div className="flex min-h-screen" suppressHydrationWarning>
-                  <Sidebar />
+                  {session && <Sidebar />}
                   <main suppressHydrationWarning className="flex-1 flex flex-col min-w-0 bg-[#030303]">
-                    <header suppressHydrationWarning className="h-20 border-b border-white/5 flex items-center justify-between px-4 sm:px-8 sticky top-0 bg-[#030303]/60 backdrop-blur-2xl z-[100]">
-                      <SearchBar />
-                      <div className="flex items-center gap-2 sm:gap-6 ml-2 sm:ml-8">
-                        <div className="flex items-center gap-6">
-                          <UserMenu />
+                    {session && (
+                      <header suppressHydrationWarning className="h-20 border-b border-white/5 flex items-center justify-between px-4 sm:px-8 sticky top-0 bg-[#030303]/60 backdrop-blur-2xl z-[100]">
+                        <SearchBar />
+                        <div className="flex items-center gap-2 sm:gap-6 ml-2 sm:ml-8">
+                          <div className="flex items-center gap-6">
+                            <UserMenu />
+                          </div>
                         </div>
-                      </div>
-                    </header>
+                      </header>
+                    )}
                     <div suppressHydrationWarning className="flex-1 overflow-y-auto no-scrollbar relative flex flex-col">
                       <div className="flex-1">{children}</div>
                       <Footer />

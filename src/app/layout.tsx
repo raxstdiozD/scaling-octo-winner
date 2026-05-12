@@ -13,7 +13,7 @@ import { UserMenu } from "@/components/layout/UserMenu";
 import { SearchBar } from "@/components/layout/SearchBar";
 import { AppLoader } from "@/components/providers/AppLoader";
 import { Suspense } from "react";
-import { createClient } from "@/utils/supabase/server";
+import { auth } from "@/auth";
 import { Footer } from "@/components/layout/Footer";
 import { I18nProvider } from "@/components/providers/I18nProvider";
 import { CreditBadge } from "@/components/ui/CreditBadge";
@@ -30,8 +30,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const session = await auth();
 
   return (
     <html lang="en" className="dark" suppressHydrationWarning>

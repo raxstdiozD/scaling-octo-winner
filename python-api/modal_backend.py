@@ -14,6 +14,7 @@ image = (
         "demucs", 
         "torch", 
         "torchaudio", 
+        "torchcodec",
         "numpy", 
         "fastapi[standard]", 
         "python-multipart"

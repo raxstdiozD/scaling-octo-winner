@@ -83,9 +83,10 @@ export function usePro() {
             setIsPro(isUserPro);
           }
         }
-      )
-      .subscribe();
+      ).subscribe();
 
+    return () => {
+      supabase.removeChannel(channel);
     };
   }, [supabase, session, authUser?.email]);
 

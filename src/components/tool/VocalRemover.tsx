@@ -166,10 +166,68 @@ export function VocalRemover() {
         setStep(1);
         setProgress(15);
 
-        // Always use the Next.js API route to benefit from Modal/HF fallback logic
+        // 1. Try Modal directly from the client (Bypasses Vercel's 4.5MB payload limit)
+        const modalUrl = process.env.NEXT_PUBLIC_MODAL_AUDIO_URL;
+        if (modalUrl) {
+            try {
+                console.log('Attempting direct Modal separation...');
+                setStep(2); // "Separating voices..."
+                
+                const reader = new FileReader();
+                const base64Promise = new Promise<string>((resolve) => {
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.readAsDataURL(audio.file);
+                });
+                const base64DataUrl = await base64Promise;
+                const base64Audio = base64DataUrl.split(',')[1];
+                
+                const modalResponse = await fetch(`${modalUrl}/process`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        file_name: audio.file.name,
+                        file_data_base64: base64Audio,
+                        task: "separate"
+                    })
+                });
+
+                if (modalResponse.ok) {
+                    const result = await modalResponse.json();
+                    if (result.success) {
+                        const { vocals, instrumental } = result.result;
+                        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+                        
+                        const getPeaksFromSource = async (src: string) => {
+                            const res = await fetch(src);
+                            const arrayBuffer = await res.arrayBuffer();
+                            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                            return extractPeaks(audioBuffer, 80);
+                        };
+
+                        const [vocalPeaks, instrumentalPeaks] = await Promise.all([
+                            getPeaksFromSource(vocals),
+                            getPeaksFromSource(instrumental)
+                        ]);
+
+                        setResult({
+                            vocals: { url: vocals, peaks: vocalPeaks },
+                            instrumental: { url: instrumental, peaks: instrumentalPeaks },
+                            zip: "#" 
+                        });
+                        setProgress(100);
+                        setIsProcessing(false);
+                        return;
+                    }
+                }
+            } catch (modalError: any) {
+                console.warn('Direct Modal call failed, falling back to Next.js API:', modalError.message);
+            }
+        }
+
+        // 2. Fallback to Next.js API route
         const apiUrl = '/api/tools/vocal-remover';
         
-        console.log('Sending request to:', apiUrl);
+        console.log('Sending request to fallback API:', apiUrl);
         const response = await fetch(apiUrl, {
             method: 'POST',
             body: formData,

@@ -116,6 +116,61 @@ export function StemSplitter() {
         const formData = new FormData();
         formData.append('file', audio.file);
 
+        // 1. Try Modal directly from the client (Bypasses Vercel's 4.5MB payload limit)
+        const modalUrl = process.env.NEXT_PUBLIC_MODAL_AUDIO_URL;
+        if (modalUrl) {
+            try {
+                console.log('Attempting direct Modal stem splitting...');
+                const reader = new FileReader();
+                const base64Promise = new Promise<string>((resolve) => {
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.readAsDataURL(audio.file);
+                });
+                const base64DataUrl = await base64Promise;
+                const base64Audio = base64DataUrl.split(',')[1];
+                
+                const modalResponse = await fetch(`${modalUrl}/process`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        file_name: audio.file.name,
+                        file_data_base64: base64Audio,
+                        stems: 4,
+                        task: "separate"
+                    })
+                });
+
+                if (modalResponse.ok) {
+                    const data = await modalResponse.json();
+                    if (data.success) {
+                        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+                        const stems = ['vocals', 'drums', 'bass', 'other'];
+                        const processedResult: Record<string, { url: string; peaks: number[] }> = {};
+
+                        for (const stem of stems) {
+                            const url = data.result?.[stem];
+                            if (!url) continue;
+                            try {
+                                const res = await fetch(url);
+                                const arrayBuffer = await res.arrayBuffer();
+                                const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                                processedResult[stem] = { url, peaks: extractPeaks(audioBuffer, 80) };
+                            } catch (err) {
+                                processedResult[stem] = { url, peaks: Array.from({ length: 80 }, () => Math.random() * 0.5 + 0.2) };
+                            }
+                        }
+                        setResult(processedResult);
+                        setProgress(100);
+                        setIsProcessing(false);
+                        return;
+                    }
+                }
+            } catch (modalError: any) {
+                console.warn('Direct Modal call failed:', modalError.message);
+            }
+        }
+
+        // 2. Fallback to Next.js API
         const response = await fetch('/api/tools/audio/stem-splitter', {
             method: 'POST',
             body: formData,

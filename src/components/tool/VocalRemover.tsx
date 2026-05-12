@@ -166,12 +166,8 @@ export function VocalRemover() {
         setStep(1);
         setProgress(15);
 
-        // Call the engine directly if possible to bypass Vercel timeouts
-        let engineBaseUrl = process.env.NEXT_PUBLIC_ENGINE_URL || '';
-        if (engineBaseUrl && !engineBaseUrl.startsWith('http')) {
-            engineBaseUrl = `https://${engineBaseUrl}`;
-        }
-        const apiUrl = engineBaseUrl ? `${engineBaseUrl.endsWith('/') ? engineBaseUrl.slice(0, -1) : engineBaseUrl}/separate` : '/api/tools/vocal-remover';
+        // Always use the Next.js API route to benefit from Modal/HF fallback logic
+        const apiUrl = '/api/tools/vocal-remover';
         
         console.log('Sending request to:', apiUrl);
         const response = await fetch(apiUrl, {

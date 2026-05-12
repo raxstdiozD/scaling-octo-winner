@@ -57,18 +57,16 @@ export default async function RootLayout({
             <SessionProvider>
               <I18nProvider>
                 <div className="flex min-h-screen" suppressHydrationWarning>
-                  {session && <Sidebar />}
+                  <Sidebar />
                   <main suppressHydrationWarning className="flex-1 flex flex-col min-w-0 bg-[#030303]">
-                    {session && (
-                      <header suppressHydrationWarning className="h-20 border-b border-white/5 flex items-center justify-between px-4 sm:px-8 sticky top-0 bg-[#030303]/60 backdrop-blur-2xl z-[100]">
-                        <SearchBar />
-                        <div className="flex items-center gap-2 sm:gap-6 ml-2 sm:ml-8">
-                          <div className="flex items-center gap-6">
-                            <UserMenu />
-                          </div>
+                    <header suppressHydrationWarning className="h-20 border-b border-white/5 flex items-center justify-between px-4 sm:px-8 sticky top-0 bg-[#030303]/60 backdrop-blur-2xl z-[100]">
+                      <SearchBar />
+                      <div className="flex items-center gap-2 sm:gap-6 ml-2 sm:ml-8">
+                        <div className="flex items-center gap-6">
+                          <UserMenu />
                         </div>
-                      </header>
-                    )}
+                      </div>
+                    </header>
                     <div suppressHydrationWarning className="flex-1 overflow-y-auto no-scrollbar relative flex flex-col">
                       <div className="flex-1">{children}</div>
                       <Footer />

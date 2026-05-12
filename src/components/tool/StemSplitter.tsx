@@ -163,7 +163,12 @@ export function StemSplitter() {
                         setProgress(100);
                         setIsProcessing(false);
                         return;
+                    } else {
+                        console.warn('Modal processing failed:', data.error);
+                        if (data.trace) console.debug('Modal Trace:', data.trace);
                     }
+                } else {
+                    console.warn('Modal server returned error:', modalResponse.status);
                 }
             } catch (modalError: any) {
                 console.warn('Direct Modal call failed:', modalError.message);

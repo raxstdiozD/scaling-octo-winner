@@ -35,9 +35,12 @@ export async function POST(req: NextRequest) {
         if (modalResponse.ok) {
           const result = await modalResponse.json();
           if (result.success) return NextResponse.json(result);
+          console.warn('Modal noise removal error:', result.error);
+        } else {
+          console.warn('Modal server error:', modalResponse.status);
         }
       } catch (modalError: any) {
-        console.warn('Modal noise removal failed:', modalError.message);
+        console.warn('Modal noise removal unreachable:', modalError.message);
       }
     }
 

@@ -217,7 +217,13 @@ export function VocalRemover() {
                         setProgress(100);
                         setIsProcessing(false);
                         return;
+                    } else {
+                        console.warn('Modal processing failed:', result.error);
+                        if (result.trace) console.debug('Modal Trace:', result.trace);
+                        // We don't throw here, we let it fall back to Next.js API
                     }
+                } else {
+                    console.warn('Modal server returned error:', modalResponse.status, modalResponse.statusText);
                 }
             } catch (modalError: any) {
                 console.warn('Direct Modal call failed, falling back to Next.js API:', modalError.message);

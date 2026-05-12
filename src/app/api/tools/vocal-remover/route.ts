@@ -37,6 +37,9 @@ export async function POST(req: NextRequest) {
         if (modalResponse.ok) {
           const result = await modalResponse.json();
           if (result.success) return NextResponse.json(result);
+          console.warn('Modal processing error:', result.error);
+        } else {
+          console.warn('Modal server error:', modalResponse.status);
         }
       } catch (modalError: any) {
         console.warn('Modal unreachable:', modalError.message);

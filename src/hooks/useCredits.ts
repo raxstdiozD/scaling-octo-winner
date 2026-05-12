@@ -83,6 +83,7 @@ export function useCredits() {
   const fetchCredits = useCallback(async () => {
     if (!userId) return;
 
+    try {
       const resetResponse = await fetch('/api/user/reset-if-needed', { method: 'POST' });
       if (resetResponse.ok) {
         const resetResult = await resetResponse.json();

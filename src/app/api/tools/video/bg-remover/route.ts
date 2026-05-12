@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Modal.com (Highest Priority for Heavy Video Tasks)
-    const modalUrl = process.env.MODAL_SUBTITLE_GENERATOR_URL?.replace("-generate-subtitles.modal.run", "-fastapi-app.modal.run/remove-bg");
+    const modalUrl = process.env.MODAL_VIDEO_URL ? `${process.env.MODAL_VIDEO_URL}/remove-bg` : null;
     if (modalUrl) {
       try {
         console.log('Attempting Modal video background removal...');

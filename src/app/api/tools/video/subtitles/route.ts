@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No video file provided" }, { status: 400 });
     }
 
-    const MODAL_URL = (process.env.MODAL_SUBTITLE_GENERATOR_URL || "https://syedrayangames--lumora-video-tools-generate-subtitles.modal.run").replace("-generate-subtitles.modal.run", "-fastapi-app.modal.run/subtitles");
+    const MODAL_URL = process.env.MODAL_VIDEO_URL ? `${process.env.MODAL_VIDEO_URL}/subtitles` : "https://syedrayangames--lumora-video-tools-fastapi-app.modal.run/subtitles";
 
     console.log(`[SubtitleGenerator] Calling Modal: ${MODAL_URL} (Language: ${language}, Burn: ${burn})`);
 

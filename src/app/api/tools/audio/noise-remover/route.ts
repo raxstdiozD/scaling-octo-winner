@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Try Modal.com (Highest Priority for Heavy Tasks)
-    const modalUrl = process.env.MODAL_VOCAL_REMOVER_URL?.replace("-separate.modal.run", "-process.modal.run");
+    const modalUrl = process.env.MODAL_AUDIO_URL;
     if (modalUrl) {
       try {
         console.log('Attempting Modal noise removal...');

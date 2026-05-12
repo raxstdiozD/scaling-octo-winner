@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No video file provided" }, { status: 400 });
     }
 
-    const MODAL_URL = (process.env.MODAL_VIDEO_TO_GIF_URL || "https://syedrayangames--lumora-video-tools-convert-to-gif.modal.run").replace("-convert-to-gif.modal.run", "-fastapi-app.modal.run/to-gif");
+    const MODAL_URL = process.env.MODAL_VIDEO_URL ? `${process.env.MODAL_VIDEO_URL}/to-gif` : "https://syedrayangames--lumora-video-tools-fastapi-app.modal.run/to-gif";
 
     // Convert file to base64
     const buffer = Buffer.from(await file.arrayBuffer());

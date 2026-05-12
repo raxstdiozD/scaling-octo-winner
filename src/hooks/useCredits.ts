@@ -65,7 +65,14 @@ export function useCredits() {
 
   // Removed Supabase auth listener as we use next-auth session above
 
-
+  useEffect(() => {
+    if (session === undefined) return; // Wait for session to be fetched
+    if (!session) {
+      setLoading(false);
+      return;
+    }
+    fetchCredits();
+  }, [session, fetchCredits]);
   const showNotification = (message: string, type: 'success' | 'info' | 'warning' = 'info') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);

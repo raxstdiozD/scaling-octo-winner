@@ -14,6 +14,8 @@ export function usePro() {
 
   useEffect(() => {
     async function getProStatus() {
+      if (session === undefined) return; // Wait for session to be fetched
+      
       if (!authUser?.email) {
         setIsPro(false);
         setIsLoading(false);
@@ -84,10 +86,8 @@ export function usePro() {
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, [supabase, session, authUser?.email]);
 
   const refresh = async () => {
     setIsLoading(true);

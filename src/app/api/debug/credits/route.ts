@@ -79,11 +79,30 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    console.log(`[DEBUG] User found:`, user)
+    // Existing User - Auto-reset message count if they visit this page (for testing)
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        aiMessagesToday: 0 // Reset message count for testing
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        dailyCredits: true,
+        lifetimeCredits: true,
+        aiMessagesToday: true,
+        plan: true,
+        creditsLastReset: true,
+        createdAt: true,
+      }
+    })
+
+    console.log(`[DEBUG] User found and message count reset:`, updatedUser)
 
     return NextResponse.json({
       success: true,
-      message: 'User found with credits',
+      message: 'User found and AI message count has been reset to 0 for testing',
       data: {
         auth: {
           userId: session.user.id,
@@ -91,15 +110,16 @@ export async function GET(request: NextRequest) {
           authProvider: session.user.user_metadata?.provider || 'unknown'
         },
         database: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          dailyCredits: user.dailyCredits,
-          lifetimeCredits: user.lifetimeCredits,
-          totalCredits: user.dailyCredits + user.lifetimeCredits,
-          plan: user.plan,
-          creditsLastReset: user.creditsLastReset,
-          createdAt: user.createdAt,
+          id: updatedUser.id,
+          email: updatedUser.email,
+          name: updatedUser.name,
+          dailyCredits: updatedUser.dailyCredits,
+          lifetimeCredits: updatedUser.lifetimeCredits,
+          aiMessagesToday: updatedUser.aiMessagesToday,
+          totalCredits: updatedUser.dailyCredits + updatedUser.lifetimeCredits,
+          plan: updatedUser.plan,
+          creditsLastReset: updatedUser.creditsLastReset,
+          createdAt: updatedUser.createdAt,
         }
       }
     })

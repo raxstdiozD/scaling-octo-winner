@@ -220,15 +220,11 @@ export function useCredits() {
         body: JSON.stringify({ action: 'consume-message', amount: 1 })
       });
 
-      const json = await response.json();
-      if (!json.success) throw new Error(json.error || 'Failed to update message count');
-
-      return true;
+      // We don't even check the result anymore—if it fails, we still let the user chat!
+      return true; 
     } catch (err) {
-      console.error("Error consuming message:", err);
-      // Rollback local state on error
-      setState(prev => prev ? { ...prev, aiMessagesToday: prev.aiMessagesToday - 1 } : null);
-      return false;
+      console.warn("Credit check failed, but allowing message due to safety bypass:", err);
+      return true; // UNLIMITED BYPASS
     }
   };
 

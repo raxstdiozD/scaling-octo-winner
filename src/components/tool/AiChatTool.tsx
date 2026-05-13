@@ -256,10 +256,13 @@ export function AiChatTool() {
     console.log("DEBUG: Checking credits/limits...");
     const canSend = await consumeMessage();
     if (!canSend) {
-      console.log("DEBUG: canSend returned false. Blocked by limits or missing profile.");
-      if (!session) toast("Please sign in to send messages", "warning");
-      else if (plan === 'pro') toast("System busy. Please try again in a moment.", "warning");
-      else toast("Daily message limit reached. Upgrade to Pro for unlimited!", "warning");
+      if (!session) {
+        toast("Please sign in to send messages", "warning");
+      } else if (plan === 'pro') {
+        toast("System overloaded. Retrying...", "info");
+      } else {
+        toast("High Traffic: Pro users have priority. Please try again in a few seconds.", "warning");
+      }
       return;
     }
     const userMsg: Message = { 

@@ -15,7 +15,7 @@ export interface CreditState {
 
 const FREE_LIMITS = {
   credits: 50,
-  messages: 50 // Increased to match daily credits
+  messages: Infinity // Unlimited messages, but subject to priority/load
 };
 
 const PRO_LIMITS = {

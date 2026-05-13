@@ -258,10 +258,8 @@ export function AiChatTool() {
     if (!canSend) {
       if (!session) {
         toast("Please sign in to send messages", "warning");
-      } else if (plan === 'pro') {
-        toast("System overloaded. Retrying...", "info");
       } else {
-        toast("High Traffic: Pro users have priority. Please try again in a few seconds.", "warning");
+        toast("System busy. Please refresh the page and try again.", "warning");
       }
       return;
     }

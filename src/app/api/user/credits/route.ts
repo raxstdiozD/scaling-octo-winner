@@ -78,38 +78,22 @@ export async function POST(request: NextRequest) {
     } else if (action === 'add') {
       result = await addCredits(userId, amount, reason)
     } else if (action === 'consume-message') {
-      // 1. Check if user is Pro
-      const user = await prisma.user.findUnique({
+      // Logic for incrementing AI message count (Simplified & Unlimited)
+      const now = new Date()
+      const updated = await prisma.user.upsert({
         where: { id: userId },
-        select: { plan: true }
-      })
-
-      // 2. If user is FREE, check if any PRO users are active right now (last 5 minutes)
-      if (user?.plan === 'free') {
-        const activeProUsers = await prisma.user.count({
-          where: {
-            plan: 'pro',
-            updatedAt: {
-              gte: new Date(Date.now() - 5 * 60 * 1000) // Active in last 5 mins
-            }
-          }
-        })
-
-        // If there are active Pro users, simulate a "busy" state for Free users (20% chance)
-        // or always block if you want strict priority. Let's do 30% chance of "busy".
-        if (activeProUsers > 0 && Math.random() < 0.3) {
-          return NextResponse.json(
-            { error: 'High traffic: Pro users have priority' },
-            { status: 429 }
-          )
-        }
-      }
-
-      // 3. Logic for incrementing AI message count (Unlimited)
-      const updated = await prisma.user.update({
-        where: { id: userId },
-        data: {
-          aiMessagesToday: { increment: 1 }
+        update: {
+          aiMessagesToday: { increment: 1 },
+          updatedAt: now
+        },
+        create: {
+          id: userId,
+          dailyCredits: 50,
+          lifetimeCredits: 0,
+          aiMessagesToday: 1,
+          plan: 'free',
+          createdAt: now,
+          updatedAt: now
         },
         select: { aiMessagesToday: true }
       })

@@ -49,8 +49,13 @@ export async function GET(request: NextRequest) {
                        session.user.user_metadata?.name || 
                        email?.split('@')[0] || 'User'
       
-      const newUser = await prisma.user.create({
-        data: {
+      const newUser = await prisma.user.upsert({
+        where: { id: userId },
+        update: {
+          aiMessagesToday: 0,
+          aiMessagesReset: new Date(),
+        },
+        create: {
           id: userId,
           email: email || '',
           name: userName,

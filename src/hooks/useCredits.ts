@@ -193,19 +193,38 @@ export function useCredits() {
   };
 
   const consumeMessage = async () => {
-    if (!userId || !state) return false;
+    if (!userId) return false;
+    
+    // If we're still loading, wait a moment or fetch again
+    if (!state || loading) {
+      await fetchCredits();
+    }
+
+    // Re-check state after potential fetch
+    if (!state) return false;
+
     const limit = state.plan === 'pro' ? PRO_LIMITS.messages : FREE_LIMITS.messages;
+    
     if (state.plan === 'free' && state.aiMessagesToday >= limit) {
       setShowUpsell(true);
       return false;
     }
+
     try {
-      await supabase
+      // Update local state immediately for snappy UI
+      setState(prev => prev ? { ...prev, aiMessagesToday: prev.aiMessagesToday + 1 } : null);
+
+      const { error } = await supabase
         .from('User')
         .update({ ai_messages_today: state.aiMessagesToday + 1 })
         .eq('id', userId);
+      
+      if (error) throw error;
       return true;
     } catch (err) {
+      console.error("Error consuming message:", err);
+      // Rollback local state on error
+      setState(prev => prev ? { ...prev, aiMessagesToday: prev.aiMessagesToday - 1 } : null);
       return false;
     }
   };

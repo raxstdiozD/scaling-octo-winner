@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
         dailyCredits: credits.dailyCredits,
         lifetimeCredits: credits.lifetimeCredits,
         totalCredits: credits.dailyCredits + credits.lifetimeCredits,
+        aiMessagesToday: credits.aiMessagesToday,
         plan: credits.plan,
         lastReset: credits.creditsLastReset,
       }

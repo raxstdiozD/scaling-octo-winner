@@ -59,64 +59,76 @@ export async function POST(request: NextRequest) {
     const { data: { session }, error: authError } = await supabase.auth.getSession()
     
     if (authError || !session?.user?.id) {
+      console.error('[API] Auth error or no session:', authError)
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const userId = session.user.id
     const { action, amount, reason } = await request.json()
 
-    if (!action || !amount) {
-      return NextResponse.json(
-        { error: 'Missing action or amount' },
-        { status: 400 }
-      )
+    if (!action) {
+      return NextResponse.json({ error: 'Missing action' }, { status: 400 })
     }
 
-    let result
-    if (action === 'deduct') {
-      result = await deductCredits(userId, amount)
-    } else if (action === 'add') {
-      result = await addCredits(userId, amount, reason)
-    } else if (action === 'consume-message') {
-      // Logic for incrementing AI message count (Simplified & Unlimited)
-      const now = new Date()
-      const updated = await prisma.user.upsert({
-        where: { id: userId },
-        update: {
-          aiMessagesToday: { increment: 1 },
-          updatedAt: now
-        },
-        create: {
-          id: userId,
-          dailyCredits: 50,
-          lifetimeCredits: 0,
-          aiMessagesToday: 1,
-          plan: 'free',
-          createdAt: now,
-          updatedAt: now
-        },
-        select: { aiMessagesToday: true }
-      })
-      result = { success: true, data: updated }
-    } else {
-      return NextResponse.json(
-        { error: 'Invalid action. Use "deduct", "add", or "consume-message"' },
-        { status: 400 }
-      )
+    console.log(`[API] Processing credit action: ${action} for user: ${userId}`)
+
+    let result: any = { success: true }
+    
+    try {
+      if (action === 'deduct') {
+        result = await deductCredits(userId, amount || 0)
+      } else if (action === 'add') {
+        result = await addCredits(userId, amount || 0, reason)
+      } else if (action === 'consume-message') {
+        // Logic for incrementing AI message count (Unlimited with Safety Bypass)
+        const now = new Date()
+        try {
+          const updated = await prisma.user.upsert({
+            where: { id: userId },
+            update: {
+              aiMessagesToday: { increment: 1 },
+              updatedAt: now
+            },
+            create: {
+              id: userId,
+              dailyCredits: 50,
+              lifetimeCredits: 0,
+              aiMessagesToday: 1,
+              plan: 'free',
+              createdAt: now,
+              updatedAt: now
+            },
+            select: { aiMessagesToday: true }
+          })
+          result = { success: true, data: updated }
+        } catch (dbErr) {
+          console.error('[API] CRITICAL: Database error during message consumption:', dbErr)
+          // SAFETY BYPASS: Return success even if DB update fails so user isn't blocked
+          return NextResponse.json({ success: true, bypass: true })
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'Invalid action. Use "deduct", "add", or "consume-message"' },
+          { status: 400 }
+        )
+      }
+    } catch (actionErr) {
+      console.error(`[API] Error performing action ${action}:`, actionErr)
+      if (action === 'consume-message') {
+        return NextResponse.json({ success: true, bypass: true })
+      }
+      throw actionErr
     }
 
     if (!result.success) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: result.error }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true, data: result.data })
+    return NextResponse.json({ success: true, data: result.data || result })
   } catch (err) {
-    console.error('[API] Error processing credits:', err)
+    console.error('[API] Global POST error:', err)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: String(err) },
       { status: 500 }
     )
   }

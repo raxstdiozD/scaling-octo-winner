@@ -253,30 +253,25 @@ export function AiChatTool() {
       return;
     }
 
-    console.log("DEBUG: Checking credits/limits...");
-    const canSend = await consumeMessage();
-    if (!canSend) {
-      if (!session) {
-        toast("Please sign in to start chatting.", "info");
-      } else {
-        // If they are logged in but canSend is false, it's likely a sync issue
-        console.warn("[Chat] consumeMessage returned false for logged-in user");
-        // We'll allow them to try anyway if it's a transient issue
-      }
-      // Note: With the new hook bypass, this should rarely be reached for logged-in users
-      if (!session) return;
-    }
     const userMsg: Message = { 
       role: "user", 
       content: content.trim(),
       attachments: attachments.map(a => ({ type: a.type, data: a.data, name: a.name }))
     };
     
+    // IMMEDIATELY update UI for zero-latency feel
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
     setError(null);
     setAttachments([]);
+
+    console.log("DEBUG: Checking credits/limits in background...");
+    const canSend = await consumeMessage();
+    if (!canSend && !session) {
+        toast("Please sign in to save your chat history.", "info");
+        // We still allow them to proceed as per the "Unlimited" policy
+    }
 
     try {
       console.log("DEBUG: Calling API /api/tools/ai/chat");

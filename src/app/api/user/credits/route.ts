@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { getUserCredits, deductCredits, addCredits } from '@/lib/credits'
+import { prisma } from '@/lib/prisma'
 
 /**
  * GET /api/user/credits

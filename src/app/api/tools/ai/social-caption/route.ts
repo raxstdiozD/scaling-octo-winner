@@ -5,7 +5,8 @@ import axios from "axios";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 async function callGroq(messages: any[], model: string = "llama-3.3-70b-versatile") {
-  const keys = process.env.GROQ_API_KEYS?.split(",").map(k => k.trim()) || [];
+  const rawKeys = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY || "";
+  const keys = rawKeys.split(",").map(k => k.trim()).filter(Boolean);
   if (keys.length === 0) throw new Error("No Groq API keys configured");
 
   let lastError: any = null;

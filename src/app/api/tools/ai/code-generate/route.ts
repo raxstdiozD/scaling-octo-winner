@@ -45,8 +45,31 @@ export async function POST(req: Request) {
 
     const { prompt, language, framework } = await req.json();
 
-    const groqKey = process.env.GROQ_API_KEY;
-    if (!groqKey) throw new Error("GROQ_API_KEY missing");
+    const rawKeys = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY || "";
+    const groqKeys = rawKeys.split(",").map(k => k.trim()).filter(Boolean);
+    
+    if (groqKeys.length === 0) {
+      console.error("[Code Gen] No GROQ_API_KEY found in environment");
+      return NextResponse.json({ error: "AI Service Configuration Error" }, { status: 500 });
+    }
+
+    async function callGroq(payload: any) {
+      let lastError = null;
+      for (const key of groqKeys) {
+        try {
+          const res = await axios.post("https://api.groq.com/openai/v1/chat/completions", payload, {
+            headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+            timeout: 30000
+          });
+          return res.data;
+        } catch (err: any) {
+          lastError = err;
+          if (err.response?.status === 429) continue;
+          throw err;
+        }
+      }
+      throw lastError || new Error("All AI keys exhausted or failed");
+    }
 
     const systemPrompt = `You are Lumora Code Genius, an elite AI software engineer. 
 Your goal is to generate clean, modern, and highly efficient code.
@@ -72,7 +95,7 @@ Instructions:
 - Never include instructions inside the code block.
 - Ensure delimiters are on their own lines.`;
 
-    const response = await axios.post("https://api.groq.com/openai/v1/chat/completions", {
+    const response = await callGroq({
       model: "llama-3.3-70b-versatile",
       messages: [
         { role: "system", content: systemPrompt },
@@ -80,14 +103,9 @@ Instructions:
       ],
       temperature: 0.2, // Lower temperature for more accurate code
       max_tokens: 2048
-    }, {
-      headers: {
-        "Authorization": `Bearer ${groqKey}`,
-        "Content-Type": "application/json"
-      }
     });
 
-    const codeOutput = response.data.choices[0].message.content;
+    const codeOutput = response.choices[0].message.content;
 
     // Deduct credits (Sync with Supabase)
     if (userPlan !== 'pro') {

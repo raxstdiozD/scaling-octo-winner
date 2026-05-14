@@ -89,20 +89,38 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { messages, sessionId, attachments = [] } = body;
-    const groqKeys = (process.env.GROQ_API_KEYS || "").split(",").map(k => k.trim()).filter(Boolean);
     
+    // Support both singular and plural env keys, and multiple comma-separated keys
+    const rawKeys = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY || "";
+    const groqKeys = rawKeys.split(",").map(k => k.trim()).filter(Boolean);
+    
+    if (groqKeys.length === 0) {
+      console.error("[Chat] No GROQ_API_KEY found in environment");
+      return NextResponse.json({ error: "AI Service Configuration Error" }, { status: 500 });
+    }
+
     async function callGroq(payload: any) {
+      let lastError = null;
       for (const key of groqKeys) {
         try {
           const res = await axios.post("https://api.groq.com/openai/v1/chat/completions", payload, {
-            headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" }
+            headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
+            timeout: 20000 // 20s timeout
           });
           return res.data;
         } catch (err: any) {
-          if (err.response?.status === 429) continue;
-          throw err;
+          lastError = err;
+          const status = err.response?.status;
+          console.warn(`[Chat] Key failed (${status}):`, err.message);
+          
+          if (status === 429) continue; // Rate limit - try next key
+          if (status === 401 || status === 403) continue; // Auth error - try next key
+          
+          // For other errors, we might want to try another key too, but let's be careful
+          continue; 
         }
       }
+      throw lastError || new Error("All AI keys exhausted or failed");
     }
 
     const tools: any[] = [
@@ -153,6 +171,11 @@ export async function POST(req: Request) {
     // ... Simplified Tool Call Logic for Brevity in this migration ...
     // Note: Keeping the core LLM call and response logic from original
     const data = await callGroq({ model, messages: currentMessages, temperature: 0.5 });
+    
+    if (!data || !data.choices || !data.choices[0]) {
+      throw new Error("AI Service returned an empty or invalid response");
+    }
+
     const finalAiContent = data.choices[0].message.content || "";
     
     const finalMessages = [...messages, { role: "assistant", content: finalAiContent }];
@@ -177,7 +200,16 @@ export async function POST(req: Request) {
       activeSessionId = newSession?.id;
     }
 
-    // Credit deduction removed for Unlimited Chat
+    // Credit consumption with Safety Bypass
+    try {
+      // We don't await this or block the user if it fails
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (req.url.includes('localhost') ? 'http://localhost:3000' : '');
+      fetch(`${baseUrl}/api/user/credits`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Cookie': req.headers.get('cookie') || '' },
+        body: JSON.stringify({ action: 'consume-message', amount: 1 })
+      }).catch(e => console.warn("[Chat] Credit consumption fire-and-forget failed:", e));
+    } catch (e) {}
 
     return NextResponse.json({ message: finalAiContent, id: activeSessionId });
   } catch (err: any) {

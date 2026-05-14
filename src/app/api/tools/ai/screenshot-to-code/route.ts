@@ -13,8 +13,9 @@ export async function POST(req: NextRequest) {
       creditCost: 15,
     },
     async (fileBuffer, jobId, formData) => {
-      const groqKeys = (process.env.GROQ_API_KEYS || "").split(",").map(k => k.trim()).filter(Boolean);
-      if (groqKeys.length === 0) throw new Error("GROQ_API_KEYS missing");
+      const rawKeys = process.env.GROQ_API_KEYS || process.env.GROQ_API_KEY || "";
+      const groqKeys = rawKeys.split(",").map(k => k.trim()).filter(Boolean);
+      if (groqKeys.length === 0) throw new Error("GROQ_API_KEY missing from environment");
 
       // Convert buffer to base64 for vision model
       const base64Image = fileBuffer.toString("base64");

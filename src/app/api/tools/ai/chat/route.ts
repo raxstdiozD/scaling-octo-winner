@@ -166,7 +166,13 @@ export async function POST(req: Request) {
     const systemPrompt = `You are Lumora AI. Be direct, witty, and proactive. Use markdown. Current Context: ${contextStr}`;
     const model = "llama-3.3-70b-versatile";
 
-    let currentMessages = [{ role: "system", content: systemPrompt }, ...messages];
+    // Strip unsupported properties like 'attachments' before sending to Groq
+    const sanitizedMessages = messages.map((m: any) => ({
+      role: m.role,
+      content: m.content
+    }));
+
+    let currentMessages = [{ role: "system", content: systemPrompt }, ...sanitizedMessages];
     
     // ... Simplified Tool Call Logic for Brevity in this migration ...
     // Note: Keeping the core LLM call and response logic from original

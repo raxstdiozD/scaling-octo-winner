@@ -19,6 +19,7 @@ import Link from "next/link";
 import { createClient } from "@/utils/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signUpAction, signInAction, verifyOtpAction, forgotPasswordAction, resendOtpAction } from "@/app/actions/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 // --- Premium Custom Icons ---
 const GoogleIcon = () => (
@@ -46,11 +47,13 @@ export default function AuthPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  
+  const [isRedirectingState, setIsRedirectingState] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
   const searchParams = useSearchParams();
   const returnUrl = searchParams.get('returnUrl') || '/dashboard';
+  
+  const { isRedirecting: isHookRedirecting } = useAuth(returnUrl);
+  const isRedirecting = isHookRedirecting || isRedirectingState;
 
   // Auto-dismiss success/error messages
   useEffect(() => {
@@ -62,17 +65,6 @@ export default function AuthPage() {
       return () => clearTimeout(timer);
     }
   }, [success, error]);
-
-  // Auto-redirect if already logged in
-  useEffect(() => {
-    async function checkSession() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        window.location.href = returnUrl;
-      }
-    }
-    checkSession();
-  }, [supabase, returnUrl]);
 
   // Handle OTP input
   const handleOtpChange = (index: number, value: string) => {
@@ -99,10 +91,11 @@ export default function AuthPage() {
     setSocialLoading(provider);
     setError(null);
     try {
+      const supabase = createClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: { 
-          redirectTo: `${window.location.origin}/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}` 
+          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(returnUrl)}` 
         },
       });
       if (error) throw error;
@@ -128,6 +121,7 @@ export default function AuthPage() {
         if (result?.error) {
           setError(result.error);
         } else {
+          setIsRedirectingState(true);
           window.location.href = returnUrl;
         }
       } else if (state === 'signup') {
@@ -183,6 +177,7 @@ export default function AuthPage() {
         setError(result.error);
       } else {
         setState('success');
+        setIsRedirectingState(true);
         setTimeout(() => {
           // Use window.location for a more reliable redirect during auth flows
           window.location.href = returnUrl;
@@ -205,6 +200,29 @@ export default function AuthPage() {
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
       </div>
 
+      {isRedirecting ? (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="w-full max-w-[440px] z-10 flex flex-col items-center justify-center space-y-6 min-h-[400px]"
+        >
+          <div className="w-20 h-20 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center relative">
+            <CheckCircle2 size={40} className="text-emerald-500" />
+            <motion.div 
+              className="absolute inset-0 rounded-full border border-emerald-500/30"
+              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+            />
+          </div>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-white mb-2">Success!</h2>
+            <p className="text-zinc-400 text-sm flex items-center justify-center gap-2">
+              <Loader2 className="animate-spin text-purple-500" size={16} /> 
+              Redirecting to your dashboard...
+            </p>
+          </div>
+        </motion.div>
+      ) : (
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -559,6 +577,7 @@ export default function AuthPage() {
           </div>
         </div>
       </motion.div>
+      )}
     </div>
   );
 }

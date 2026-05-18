@@ -24,11 +24,11 @@ export async function POST(req: NextRequest) {
 
     // Simple credit deduction
     try {
-        const user = await prisma.user.findUnique({ where: { email: sbUser.email! } });
+        const user = await prisma.user.findUnique({ where: { id: sbUser.id } });
         if (user) {
             await prisma.user.update({
                 where: { id: user.id },
-                data: { credits: { decrement: 1 } }
+                data: { dailyCredits: { decrement: 1 } }
             });
         }
     } catch (e) {

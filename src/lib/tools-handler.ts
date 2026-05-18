@@ -25,7 +25,7 @@ export async function withToolHandler(
 
     // Ensure user exists in Prisma DB
     let user = await prisma.user.findUnique({
-      where: { email: sbUser.email! }
+      where: { id: sbUser.id }
     });
 
     if (!user) {

@@ -19,7 +19,7 @@ export async function POST(
     }
 
     let currentUser = await prisma.user.findUnique({
-        where: { email: sbUser.email! }
+        where: { id: sbUser.id }
     });
 
     if (!currentUser) {

@@ -13,13 +13,13 @@ export async function POST(req: Request) {
     }
 
     // Check credits
-    let user = await prisma.user.findUnique({ where: { email: sbUser.email } });
+    let user = await prisma.user.findUnique({ where: { id: sbUser.id } });
     if (!user) {
       user = await prisma.user.create({
         data: {
           id: sbUser.id,
           email: sbUser.email,
-          name: sbUser.name || sbUser.email.split('@')[0],
+          name: sbUser.user_metadata?.full_name || sbUser.user_metadata?.name || sbUser.email.split('@')[0],
           dailyCredits: 50,
           plan: 'free'
         }

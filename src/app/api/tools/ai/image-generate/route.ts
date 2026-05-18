@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Get or create user in Prisma
     let user = await prisma.user.findUnique({
-        where: { email: sbUser.email! }
+        where: { id: sbUser.id }
     })
 
     if (!user) {
@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Daily Reset Logic (IST Aligned)
+    const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000;
     const nowIST = new Date(now.getTime() + istOffset);
     const nextResetDateIST = user.nextResetDate ? new Date(user.nextResetDate.getTime() + istOffset) : null;

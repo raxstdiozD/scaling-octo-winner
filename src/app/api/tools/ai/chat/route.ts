@@ -3,6 +3,8 @@ import { createClient } from "@/utils/supabase/server";
 import { prisma } from "@/lib/prisma";
 import axios from 'axios';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: Request) {
   try {
     const supabaseServer = await createClient();

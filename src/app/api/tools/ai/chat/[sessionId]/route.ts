@@ -13,7 +13,7 @@ export async function GET(req: Request, props: { params: Promise<{ sessionId: st
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let user = await prisma.user.findUnique({ where: { email: sbUser.email } });
+    let user = await prisma.user.findUnique({ where: { id: sbUser.id } });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     const chatSession = await prisma.chatSession.findUnique({
@@ -56,7 +56,7 @@ export async function DELETE(req: Request, props: { params: Promise<{ sessionId:
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({ where: { email: sbUser.email } });
+    const user = await prisma.user.findUnique({ where: { id: sbUser.id } });
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
     const chatSession = await prisma.chatSession.findUnique({

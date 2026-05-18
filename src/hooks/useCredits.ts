@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { PRICING_CONFIG } from '@/config/pricing';
+import { create } from 'zustand';
 
 export interface CreditState {
   dailyCredits: number;
@@ -23,24 +24,65 @@ const PRO_LIMITS = {
   messages: Infinity
 };
 
+interface CreditStore {
+  userId: string | null;
+  state: CreditState | null;
+  loading: boolean;
+  showUpsell: boolean;
+  notification: { message: string; type: 'success' | 'info' | 'warning' } | null;
+  countdown: string;
+  isInitialized: boolean;
+  setUserId: (id: string | null) => void;
+  setState: (state: CreditState | null | ((prev: CreditState | null) => CreditState | null)) => void;
+  updateState: (partial: Partial<CreditState>) => void;
+  setLoading: (l: boolean) => void;
+  setShowUpsell: (s: boolean) => void;
+  setNotification: (n: { message: string; type: 'success' | 'info' | 'warning' } | null) => void;
+  setCountdown: (c: string) => void;
+  setIsInitialized: (i: boolean) => void;
+}
+
+const useCreditStore = create<CreditStore>((set) => ({
+  userId: null,
+  state: null,
+  loading: true,
+  showUpsell: false,
+  notification: null,
+  countdown: "",
+  isInitialized: false,
+  setUserId: (id) => set({ userId: id }),
+  setState: (updater) => set((prev) => ({
+    state: typeof updater === 'function' ? updater(prev.state) : updater
+  })),
+  updateState: (partial) => set((prev) => ({
+    state: prev.state ? { ...prev.state, ...partial } : null
+  })),
+  setLoading: (l) => set({ loading: l }),
+  setShowUpsell: (s) => set({ showUpsell: s }),
+  setNotification: (n) => set({ notification: n }),
+  setCountdown: (c) => set({ countdown: c }),
+  setIsInitialized: (i) => set({ isInitialized: i }),
+}));
+
 export function useCredits() {
   const supabase = createClient();
-  const [userId, setUserId] = useState<string | null>(null);
-  const [state, setState] = useState<CreditState | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [showUpsell, setShowUpsell] = useState(false);
-  const [notification, setNotification] = useState<{message: string, type: 'success' | 'info' | 'warning'} | null>(null);
-  const [countdown, setCountdown] = useState<string>("");
+  const store = useCreditStore();
+  const { 
+    userId, state, loading, showUpsell, notification, countdown, isInitialized,
+    setUserId, setState, updateState, setLoading, setShowUpsell, setNotification, setCountdown, setIsInitialized
+  } = store;
 
+  // Single global initialization for user, countdown, and real-time listener
   useEffect(() => {
+    if (isInitialized) return;
+    setIsInitialized(true);
+
     const updateCountdown = () => {
       try {
         const now = new Date();
-        // Get current time in IST
         const istString = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
         const nowIST = new Date(istString);
         
-        // Calculate next 12 AM IST
         const nextResetIST = new Date(nowIST);
         nextResetIST.setHours(24, 0, 0, 0); 
         
@@ -58,33 +100,47 @@ export function useCredits() {
 
     updateCountdown();
     const timer = setInterval(updateCountdown, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
-  useEffect(() => {
     const getUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      setUserId(session?.user?.id || null);
+      const newUserId = session?.user?.id || null;
+      if (useCreditStore.getState().userId !== newUserId) {
+        setUserId(newUserId);
+      }
     };
     getUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id || null);
+      const newUserId = session?.user?.id || null;
+      if (useCreditStore.getState().userId !== newUserId) {
+        setUserId(newUserId);
+      }
     });
 
-    return () => subscription.unsubscribe();
-  }, [supabase]);
+    return () => {
+      clearInterval(timer);
+      subscription.unsubscribe();
+      // Do not reset isInitialized so global state persists across remounts
+    };
+  }, [supabase, isInitialized, setCountdown, setUserId, setIsInitialized]);
 
-  const showNotification = (message: string, type: 'success' | 'info' | 'warning' = 'info') => {
+  const showNotification = useCallback((message: string, type: 'success' | 'info' | 'warning' = 'info') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 3000);
-  };
+  }, [setNotification]);
 
   const fetchCredits = useCallback(async () => {
     if (!userId) return;
+    
+    // Prevent refetching if we already have the state and are not loading
+    if (useCreditStore.getState().state) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      const response = await fetch('/api/user/credits');
+      // Use no-store to avoid Next.js caching across users or sessions
+      const response = await fetch('/api/user/credits', { cache: 'no-store' });
       const json = await response.json();
 
       if (json.success && json.data) {
@@ -105,14 +161,19 @@ export function useCredits() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, setState, setLoading]);
 
-  // Real-time listener
+  useEffect(() => {
+    if (userId) {
+      fetchCredits();
+    }
+  }, [userId, fetchCredits]);
+
+  // Real-time listener specifically for the current user
   useEffect(() => {
     if (!userId) return;
 
-    // Use a unique channel name for each instance to prevent subscription collisions
-    const channelId = `credits-${userId}-${Math.random().toString(36).substring(2, 9)}`;
+    const channelId = `credits-${userId}`;
     const channel = supabase
       .channel(channelId)
       .on(
@@ -125,13 +186,12 @@ export function useCredits() {
         },
         (payload) => {
           const data = payload.new;
-          setState(prev => prev ? {
-            ...prev,
-            dailyCredits: data.daily_credits ?? prev.dailyCredits,
-            lifetimeCredits: data.lifetime_credits ?? prev.lifetimeCredits,
-            aiMessagesToday: data.ai_messages_today ?? prev.aiMessagesToday,
-            plan: data.plan ?? prev.plan,
-          } : null);
+          updateState({
+            dailyCredits: data.daily_credits,
+            lifetimeCredits: data.lifetime_credits,
+            aiMessagesToday: data.ai_messages_today,
+            plan: data.plan,
+          });
         }
       )
       .subscribe();
@@ -139,13 +199,7 @@ export function useCredits() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId, supabase]);
-
-  useEffect(() => {
-    if (userId) {
-      fetchCredits();
-    }
-  }, [userId, fetchCredits]);
+  }, [userId, supabase, updateState]);
 
   const deductCredits = async (amount: number) => {
     if (!userId || !state) return false;
@@ -195,44 +249,38 @@ export function useCredits() {
   const consumeMessage = async () => {
     if (!userId) return false;
     
-    // If we're still loading, wait a moment or fetch again
     if (!state || loading) {
       await fetchCredits();
     }
 
-    // Re-check state after potential fetch
-    if (!state) {
+    if (!useCreditStore.getState().state) {
       console.warn("[Credits] State missing after fetch, but bypassing to allow chat for user:", userId);
-      return true; // SAFETY BYPASS: Let them chat anyway
+      return true;
     }
 
-    const limit = state.plan === 'pro' ? PRO_LIMITS.messages : FREE_LIMITS.messages;
+    const currentState = useCreditStore.getState().state!;
+    const limit = currentState.plan === 'pro' ? PRO_LIMITS.messages : FREE_LIMITS.messages;
     
-    if (state.plan === 'free' && state.aiMessagesToday >= limit) {
-      // Even if over limit, we allow it for now as per "Unlimited" request
-      // But we show the upsell
+    if (currentState.plan === 'free' && currentState.aiMessagesToday >= limit) {
       setShowUpsell(true);
-      return true; // UNLIMITED BYPASS
+      return true;
     }
 
     try {
-      // Update local state immediately for snappy UI
-      setState(prev => prev ? { ...prev, aiMessagesToday: prev.aiMessagesToday + 1 } : null);
+      updateState({ aiMessagesToday: currentState.aiMessagesToday + 1 });
 
-      const response = await fetch('/api/user/credits', {
+      await fetch('/api/user/credits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'consume-message', amount: 1 })
       });
 
-      // We don't even check the result anymore—if it fails, we still let the user chat!
       return true; 
     } catch (err) {
       console.warn("Credit check failed, but allowing message due to safety bypass:", err);
-      return true; // UNLIMITED BYPASS
+      return true;
     }
   };
-
 
   return {
     credits: (state?.lifetimeCredits ?? 0) + (state?.dailyCredits ?? 0),
@@ -250,7 +298,26 @@ export function useCredits() {
     setShowUpsell,
     notification,
     toast: showNotification,
-    refreshCredits: fetchCredits,
+    refreshCredits: () => {
+      // Force fetch by skipping state check
+      if (userId) {
+        setLoading(true);
+        fetch('/api/user/credits', { cache: 'no-store' })
+          .then(res => res.json())
+          .then(json => {
+            if (json.success && json.data) {
+              setState({
+                dailyCredits: json.data.dailyCredits,
+                lifetimeCredits: json.data.lifetimeCredits,
+                creditsLastReset: json.data.lastReset || new Date().toISOString(),
+                aiMessagesToday: json.data.aiMessagesToday || 0,
+                aiMessagesReset: new Date().toISOString(),
+                plan: json.data.plan || 'free',
+              });
+            }
+          }).finally(() => setLoading(false));
+      }
+    },
     countdown
   };
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 import { prisma } from '@/lib/prisma'
+import { sendWelcomeEmail } from '@/lib/emails'
 
 /**
  * Auth Callback Route - Handles OAuth/Email auth completion
@@ -80,6 +81,10 @@ export async function GET(request: Request) {
 
         console.log(`[AUTH] ✅ New user created with 50 credits: ${userId}`)
         console.log(`[AUTH] User data:`, newUser)
+
+        if (email) {
+          sendWelcomeEmail(email).catch(err => console.error('[AUTH] Welcome email failed:', err));
+        }
       } else {
         // EXISTING USER - Just log
         console.log(`[AUTH] 🔄 Existing user login: ${userId}`)

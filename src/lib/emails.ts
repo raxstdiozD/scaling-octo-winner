@@ -4,6 +4,8 @@ const SENDER_PAYMENT = '"Lumora" <payments@lumoraai.online>';
 const SENDER_NOREPLY = '"Lumora" <noreply@lumoraai.online>';
 const SENDER_WELCOME = '"Lumora" <welcome@lumoraai.online>';
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://lumoraai.online';
+
 const PREMIUM_DARK_THEME = (content: string) => `
 <!DOCTYPE html>
 <html lang="en">
@@ -175,9 +177,9 @@ const PREMIUM_DARK_THEME = (content: string) => `
         </div>
         <div class="footer">
             <div class="footer-links">
-                <a href="https://lumoraai.online" class="footer-link">Website</a>
-                <a href="https://lumoraai.online/dashboard" class="footer-link">Dashboard</a>
-                <a href="https://lumoraai.online/support" class="footer-link">Support</a>
+                <a href="${SITE_URL}" class="footer-link">Website</a>
+                <a href="${SITE_URL}/dashboard" class="footer-link">Dashboard</a>
+                <a href="${SITE_URL}/support" class="footer-link">Support</a>
             </div>
             <p>&copy; 2026 Lumora AI</p>
         </div>
@@ -240,7 +242,7 @@ export async function sendProWelcomeEmail(email: string, details: {
             </div>
         </div>
         
-        <a href="https://lumoraai.online/dashboard" class="cta-button">Go to Dashboard</a>
+        <a href="${SITE_URL}/dashboard" class="cta-button">Go to Dashboard</a>
       `),
     });
 
@@ -272,7 +274,7 @@ export async function sendPaymentFailedEmail(email: string) {
             <p style="margin-bottom: 0; font-size: 14px;">This usually happens due to incorrect card details or bank restrictions. Please try again with a different payment method.</p>
         </div>
         
-        <a href="https://lumoraai.online/pricing" class="cta-button" style="background: #ffffff;">Retry Payment</a>
+        <a href="${SITE_URL}/pricing" class="cta-button" style="background: #ffffff;">Retry Payment</a>
       `),
     });
 
@@ -321,7 +323,7 @@ export async function sendCreditsPurchasedEmail(email: string, details: {
             </div>
         </div>
         
-        <a href="https://lumoraai.online/dashboard" class="cta-button">Resume Creation</a>
+        <a href="${SITE_URL}/dashboard" class="cta-button">Resume Creation</a>
       `),
     });
     return true;
@@ -390,10 +392,10 @@ export async function sendWelcomeEmail(email: string) {
         <div class="info-card" style="border-color: rgba(124, 58, 237, 0.3); background: rgba(124, 58, 237, 0.05);">
             <h3 style="color: #a78bfa; margin-top: 0;">Unlock Elite Power</h3>
             <p style="color: #cbd5e1; font-size: 14px;">Want unlimited access and 1,000 daily credits? Upgrade to Lumora Pro for just $6.99/mo and join the top 1% of creators.</p>
-            <a href="https://lumoraai.online/pricing" style="color: #a78bfa; font-weight: bold; text-decoration: none; font-size: 14px;">View Pro Benefits →</a>
+            <a href="${SITE_URL}/pricing" style="color: #a78bfa; font-weight: bold; text-decoration: none; font-size: 14px;">View Pro Benefits →</a>
         </div>
         
-        <a href="https://lumoraai.online/dashboard" class="cta-button">Launch Your Dashboard</a>
+        <a href="${SITE_URL}/dashboard" class="cta-button">Launch Your Dashboard</a>
       `),
     });
     return true;
@@ -404,7 +406,7 @@ export async function sendWelcomeEmail(email: string) {
 }
 export async function sendResetPasswordEmail(email: string, token: string) {
   try {
-    const resetLink = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://lumoraai.online'}/auth/reset-password?token=${token}&email=${email}`;
+    const resetLink = `${SITE_URL}/auth/reset-password?token=${token}&email=${email}`;
     
     await resend.emails.send({
       from: SENDER_NOREPLY,

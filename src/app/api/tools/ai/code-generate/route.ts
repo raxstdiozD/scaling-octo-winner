@@ -26,17 +26,11 @@ export async function POST(req: Request) {
       });
     }
 
-    // Credit system (Sync with Supabase)
-    const { data: creditData } = await supabase
-      .from('User')
-      .select('daily_credits, lifetime_credits, plan')
-      .eq('id', sbUser.id)
-      .single();
-
-    const dailyCredits = creditData?.daily_credits ?? 0;
-    const lifetimeCredits = creditData?.lifetime_credits ?? 0;
+    // Credit system (Sync with Prisma)
+    const dailyCredits = user.dailyCredits ?? 0;
+    const lifetimeCredits = user.lifetimeCredits ?? 0;
     const totalCreditsAvailable = dailyCredits + lifetimeCredits;
-    const userPlan = creditData?.plan ?? user.plan;
+    const userPlan = user.plan || 'free';
 
     const cost = 5;
     if (userPlan !== 'pro' && totalCreditsAvailable < cost) {
@@ -121,7 +115,13 @@ Instructions:
       }
 
       await Promise.all([
-        prisma.user.update({ where: { id: user.id }, data: { dailyCredits: { decrement: cost } } }),
+        prisma.user.update({
+          where: { id: user.id },
+          data: {
+            lifetimeCredits: newLifetime,
+            dailyCredits: newDaily
+          }
+        }),
         prisma.job.create({
           data: {
             userId: user.id,
@@ -131,14 +131,7 @@ Instructions:
             resultUrl: codeOutput,
             metadata: { language, framework, model: "llama-3.3-70b-versatile" }
           }
-        }),
-        supabase
-          .from('User')
-          .update({ 
-            lifetime_credits: newLifetime,
-            daily_credits: newDaily 
-          })
-          .eq('id', sbUser.id)
+        })
       ]);
     } else {
        await prisma.job.create({

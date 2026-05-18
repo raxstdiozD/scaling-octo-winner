@@ -17,15 +17,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
-    // 1. Credit Check (Pre-flight)
-    const { data: creditData } = await supabase
-      .from('User')
-      .select('daily_credits, lifetime_credits, plan')
-      .eq('id', sbUser.id)
-      .single();
+    // 1. Credit Check (Pre-flight) via Prisma
+    let user = await prisma.user.findUnique({
+      where: { id: sbUser.id }
+    });
 
-    const dailyCredits = creditData?.daily_credits ?? 0;
-    const lifetimeCredits = creditData?.lifetime_credits ?? 0;
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          id: sbUser.id,
+          email: sbUser.email!,
+          name: sbUser.user_metadata?.full_name || sbUser.email?.split('@')[0],
+          dailyCredits: 50
+        }
+      });
+    }
+
+    const dailyCredits = user.dailyCredits ?? 0;
+    const lifetimeCredits = user.lifetimeCredits ?? 0;
     const totalCreditsAvailable = dailyCredits + lifetimeCredits;
     const cost = 5;
 
@@ -86,19 +95,13 @@ export async function POST(req: NextRequest) {
       newDaily = Math.max(0, newDaily - remaining);
     }
 
-    await Promise.all([
-      prisma.user.update({
-        where: { email: sbUser.email },
-        data: { dailyCredits: { decrement: cost } }
-      }),
-      supabase
-        .from('User')
-        .update({ 
-          lifetime_credits: newLifetime,
-          daily_credits: newDaily 
-        })
-        .eq('id', sbUser.id)
-    ]);
+    await prisma.user.update({
+      where: { id: sbUser.id },
+      data: {
+        lifetimeCredits: newLifetime,
+        dailyCredits: newDaily
+      }
+    });
 
     return NextResponse.json({ content });
 

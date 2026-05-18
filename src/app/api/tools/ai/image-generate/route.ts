@@ -65,17 +65,11 @@ export async function POST(req: NextRequest) {
 
     if (!prompt) return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
 
-    // 3. Sync Credits from Supabase (Source of Truth)
-    const { data: creditData } = await supabase
-      .from('User')
-      .select('daily_credits, lifetime_credits, plan')
-      .eq('id', sbUser.id)
-      .single();
-
-    const dailyCredits = creditData?.daily_credits ?? 0;
-    const lifetimeCredits = creditData?.lifetime_credits ?? 0;
+    // 3. Sync Credits from Prisma (Source of Truth)
+    const dailyCredits = user.dailyCredits ?? 0;
+    const lifetimeCredits = user.lifetimeCredits ?? 0;
     const totalCreditsAvailable = dailyCredits + lifetimeCredits;
-    const userPlan = creditData?.plan ?? user.plan;
+    const userPlan = user.plan || "free";
 
     const costPerGen = 10;
     const totalCost = costPerGen * n;
@@ -234,15 +228,17 @@ export async function POST(req: NextRequest) {
 
     if (sbFileError) console.error("[Image Gen] Supabase history save failed:", sbFileError);
 
-    const { error: sbCreditError } = await supabaseAdmin
-      .from('User')
-      .update({ 
-        lifetime_credits: newLifetime,
-        daily_credits: newDaily 
-      })
-      .eq('id', sbUser.id);
-
-    if (sbCreditError) console.error("[Image Gen] Supabase credit update failed:", sbCreditError);
+    try {
+      await prisma.user.update({
+        where: { id: sbUser.id },
+        data: {
+          lifetimeCredits: newLifetime,
+          dailyCredits: newDaily
+        }
+      });
+    } catch (dbErr) {
+      console.error("[Image Gen] Prisma credit update failed:", dbErr);
+    }
 
     return NextResponse.json({ 
       success: true, 
